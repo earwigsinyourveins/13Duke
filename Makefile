@@ -12,7 +12,7 @@ RANLIB  = ranlib
 PKG_CONFIG ?= pkg-config
 
 BUILD_DIR = build-mingw32
-TARGET    = bin/duke3d_w32.exe
+TARGET    = bin/13duke.exe
 ENGINE_LIB = $(BUILD_DIR)/libengine.a
 
 # SDL 1.2 and SDL_mixer 1.2 must be built for the same 32-bit MinGW toolchain.

@@ -9857,9 +9857,9 @@ int main(int argc,char **argv)
 	//		"group of known dukers who know what they are doing should be using\n"
 	//		"it. Please report new bugs at xd@m-klein.com or on DX forums. Thx!\n\n");
 	if(XDUKE_SUBVERSION)
-		printf("*** xDuke v%d.%d.%d ***\n\n", XDUKE_REV_X, XDUKE_REV_DOT_Y,XDUKE_SUBVERSION);
+		printf("*** 13Duke v%d.%d ***\n\n", XDUKE_REV_X, XDUKE_REV_DOT_Y,XDUKE_SUBVERSION);
 	else
-		printf("*** xDuke v%d.%d ***\n\n", XDUKE_REV_X, XDUKE_REV_DOT_Y);
+		printf("*** 13Duke v%d.%d ***\n\n", XDUKE_REV_X, XDUKE_REV_DOT_Y);
 
 	// FIX_00033: Fake multi and AI are now fully working
 	ud.multimode = 1;  // xduke: must be done before checkcommandline or that will prevent Fakeplayer and AI
@@ -9996,7 +9996,7 @@ int main(int argc,char **argv)
         iScriptHandle = -1;
     }
 
-    _platform_init(argc, argv, "Duke Nukem 3D", "Duke3D");
+    _platform_init(argc, argv, "13Duke", "13Duke");
 #endif
 
 	setmmxoverlay(getenv("BUILD_NOPENTIUM") == NULL);
@@ -10679,6 +10679,152 @@ void closedemowrite(void)
 
 char in_menu = 0;
 
+/* Demo playback controls.  These alter only the wall-clock pacing of demo
+   playback; the recorded input stream and simulation step itself are left
+   untouched.  Right toggles 2x, Up toggles 0.5x, and Down pauses/resumes. */
+static char demo_playback_paused = 0;
+static long demo_playback_ticstep = TICSPERFRAME;
+static long demo_playback_total_frames = 0;
+
+static void reset_demo_playback_controls(void)
+{
+    demo_playback_paused = 0;
+    demo_playback_ticstep = TICSPERFRAME;
+    demo_playback_total_frames = 0;
+}
+
+static void handle_demo_playback_controls(void)
+{
+    char changed = 0;
+
+    if (KB_KeyPressed(sc_RightArrow))
+    {
+        KB_ClearKeyDown(sc_RightArrow);
+        if (demo_playback_ticstep == (TICSPERFRAME / 2))
+            demo_playback_ticstep = TICSPERFRAME;
+        else
+            demo_playback_ticstep = (TICSPERFRAME > 1) ? (TICSPERFRAME / 2) : 1;
+        changed = 1;
+    }
+
+    if (KB_KeyPressed(sc_UpArrow))
+    {
+        KB_ClearKeyDown(sc_UpArrow);
+        if (demo_playback_ticstep == (TICSPERFRAME * 2))
+            demo_playback_ticstep = TICSPERFRAME;
+        else
+            demo_playback_ticstep = TICSPERFRAME * 2;
+        changed = 1;
+    }
+
+    if (KB_KeyPressed(sc_DownArrow))
+    {
+        KB_ClearKeyDown(sc_DownArrow);
+        demo_playback_paused = !demo_playback_paused;
+        changed = 1;
+    }
+
+    /* Start the new pacing interval at the current clock.  This prevents a
+       speed change or resume from consuming a burst of overdue demo inputs. */
+    if (changed)
+        lockclock = totalclock;
+}
+
+/* Convert recorded game frames to elapsed seconds using the same timer
+   units used by the simulation.  In 1.3D, 120 timer ticks / 4 per frame
+   gives 30 recorded game frames per second. */
+static long demo_frames_to_seconds(long frames)
+{
+    long tick_rate = TICRATE;
+    long ticks_per_frame = TICSPERFRAME;
+
+    if (frames <= 0 || tick_rate <= 0 || ticks_per_frame <= 0)
+        return 0;
+
+    /* Split the calculation to avoid overflowing frames * ticks_per_frame. */
+    return (frames / tick_rate) * ticks_per_frame +
+           ((frames % tick_rate) * ticks_per_frame) / tick_rate;
+}
+
+/* Return the rendered width of a gametext string so the counter can be
+   anchored to the right edge instead of relying on a fixed text length. */
+static int demo_gametext_width(const char *text)
+{
+    int width = 0;
+    short tile;
+
+    while (*text)
+    {
+        if (*text == ' ')
+            width += 5;
+        else
+        {
+            tile = *text - '!' + STARTALPHANUM;
+            if (tile < STARTALPHANUM || tile > ENDALPHANUM)
+                break;
+
+            if (*text >= '0' && *text <= '9')
+                width += 8;
+            else
+                width += tilesizx[tile];
+        }
+        text++;
+    }
+
+    return width;
+}
+
+static void draw_demo_tic_counter(void)
+{
+    long remaining_frames;
+    long elapsed_frames;
+    long elapsed_seconds;
+    long total_seconds;
+    long elapsed_hours, elapsed_minutes, elapsed_secs;
+    long total_hours, total_minutes, total_secs;
+    int x;
+    char text[64];
+
+    if (ud.recstat != 2 || demo_playback_total_frames <= 0)
+        return;
+
+    /* The demo header counts one input record per player per game frame. */
+    if (ud.multimode > 0)
+        remaining_frames = ud.reccnt / ud.multimode;
+    else
+        remaining_frames = ud.reccnt;
+
+    if (remaining_frames < 0)
+        remaining_frames = 0;
+
+    elapsed_frames = demo_playback_total_frames - remaining_frames;
+    if (elapsed_frames < 0)
+        elapsed_frames = 0;
+    else if (elapsed_frames > demo_playback_total_frames)
+        elapsed_frames = demo_playback_total_frames;
+
+    elapsed_seconds = demo_frames_to_seconds(elapsed_frames);
+    total_seconds = demo_frames_to_seconds(demo_playback_total_frames);
+
+    elapsed_hours = elapsed_seconds / 3600;
+    elapsed_minutes = (elapsed_seconds / 60) % 60;
+    elapsed_secs = elapsed_seconds % 60;
+
+    total_hours = total_seconds / 3600;
+    total_minutes = (total_seconds / 60) % 60;
+    total_secs = total_seconds % 60;
+
+    sprintf(text, "%02ld:%02ld:%02ld / %02ld:%02ld:%02ld",
+            elapsed_hours, elapsed_minutes, elapsed_secs,
+            total_hours, total_minutes, total_secs);
+
+    x = 320 - demo_gametext_width(text) - 4;
+    if (x < 0)
+        x = 0;
+
+    gametext(x, 18, text, 0, 2+8+16);
+}
+
 // extern long syncs[];
 long playback(void)
 {
@@ -10699,6 +10845,7 @@ long playback(void)
 	*/
 
     foundemo = 0;
+    reset_demo_playback_controls();
 
     RECHECK:
 
@@ -10740,6 +10887,15 @@ long playback(void)
     else
     {
         ud.recstat = 2;
+        reset_demo_playback_controls();
+        /* reccnt stores one input record per player per demo frame. */
+        if (ud.multimode > 0)
+            demo_playback_total_frames = ud.reccnt / ud.multimode;
+        else
+            demo_playback_total_frames = ud.reccnt;
+        KB_ClearKeyDown(sc_RightArrow);
+        KB_ClearKeyDown(sc_DownArrow);
+        KB_ClearKeyDown(sc_UpArrow);
         which_demo++;
         if(which_demo == 10) 
 		{
@@ -10766,30 +10922,39 @@ long playback(void)
     while (ud.reccnt > 0 || foundemo == 0)
     {
 
-        if(foundemo) while ( totalclock >= (lockclock+TICSPERFRAME) )
+        if(foundemo)
         {
-            if ((i == 0) || (i >= RECSYNCBUFSIZ))
-            {
-                i = 0;
-                l = min(ud.reccnt,RECSYNCBUFSIZ);
-                kdfread(recsync,sizeof(input)*ud.multimode,l/ud.multimode,recfilep);
-            }
+            handle_demo_playback_controls();
 
-            for(j=connecthead;j>=0;j=connectpoint2[j])
+            if (demo_playback_paused)
+                lockclock = totalclock; /* Discard elapsed wall time while paused. */
+
+            while (!demo_playback_paused &&
+                   totalclock >= (lockclock + demo_playback_ticstep))
             {
-               copybufbyte(&recsync[i],&inputfifo[movefifoend[j]&(MOVEFIFOSIZ-1)][j],sizeof(input));
+                if ((i == 0) || (i >= RECSYNCBUFSIZ))
+                {
+                    i = 0;
+                    l = min(ud.reccnt,RECSYNCBUFSIZ);
+                    kdfread(recsync,sizeof(input)*ud.multimode,l/ud.multimode,recfilep);
+                }
+
+                for(j=connecthead;j>=0;j=connectpoint2[j])
+                {
+                   copybufbyte(&recsync[i],&inputfifo[movefifoend[j]&(MOVEFIFOSIZ-1)][j],sizeof(input));
 #ifdef DBGRECORD
-			   pFile = fopen("c:\\temp\\playback.txt","a");
-			   fprintf(pFile,"i=%-5d a=%-2x b=%-8x f=%-4x h=%-2x s=%-4x s=%-8x\n", 
-				   i, recsync[i].avel&0xFF, recsync[i].bits&0xFFFFFFFF, recsync[i].fvel&0xFFFF,
-				   recsync[i].horz&0xFF, recsync[i].svel&0xFFFF, randomseed&0xFFFFFFFF);
-			   fclose(pFile);
+    			   pFile = fopen("c:\\temp\\playback.txt","a");
+    			   fprintf(pFile,"i=%-5d a=%-2x b=%-8x f=%-4x h=%-2x s=%-4x s=%-8x\n", 
+    				   i, recsync[i].avel&0xFF, recsync[i].bits&0xFFFFFFFF, recsync[i].fvel&0xFFFF,
+    				   recsync[i].horz&0xFF, recsync[i].svel&0xFFFF, randomseed&0xFFFFFFFF);
+    			   fclose(pFile);
 #endif
-			   movefifoend[j]++;
-               i++;
-               ud.reccnt--;
+    			   movefifoend[j]++;
+                   i++;
+                   ud.reccnt--;
+                }
+                domovethings();
             }
-            domovethings();
         }
 
         if(foundemo == 0)
@@ -10801,7 +10966,7 @@ long playback(void)
                 nonsharedkeys();
             }
 
-            j = min(max((totalclock-lockclock)*(65536/TICSPERFRAME),0),65536);
+            j = min(max((totalclock-lockclock)*(65536L/demo_playback_ticstep),0),65536);
             displayrooms(screenpeek,j);
             displayrest(j);
 
@@ -10850,6 +11015,11 @@ long playback(void)
 
         operatefta();
 
+        /* This is presentation-only: it reads the remaining demo record count
+           and does not alter input playback, simulation, or timing. */
+        if (foundemo)
+            draw_demo_tic_counter();
+
         if(ud.last_camsprite != ud.camerasprite)
         {
             ud.last_camsprite = ud.camerasprite;
@@ -10867,11 +11037,13 @@ long playback(void)
         {
             if(foundemo)
                 kclose(recfilep);
+            reset_demo_playback_controls();
             ud.playing_demo_rev = 0;
 			return 0;
         }
     }
     kclose(recfilep);
+    reset_demo_playback_controls();
 	ud.playing_demo_rev = 0;
     if(ps[myconnectindex].gm&MODE_MENU)
 	{
@@ -11446,7 +11618,10 @@ char domovethings(void)
     }
 
     ud.camerasprite = -1;
-    lockclock += TICSPERFRAME;
+    if (ud.recstat == 2)
+        lockclock += demo_playback_ticstep;
+    else
+        lockclock += TICSPERFRAME;
 
     if(earthquaketime > 0) earthquaketime--;
     if(rtsplaying > 0) rtsplaying--;

@@ -83,8 +83,8 @@ extern long groupefil_crc32[MAXGROUPFILES];
 #define JONOF_ID  3
 
 #define DUKE_ID			XDUKE_ID
-#define	XDUKE_REV_X		19
-#define XDUKE_REV_DOT_Y	7   // rev is: vXDUKE_REV_X.XDUKE_REV_DOT_Y
+#define	XDUKE_REV_X		13
+#define XDUKE_REV_DOT_Y	2   // rev is: vXDUKE_REV_X.XDUKE_REV_DOT_Y
 #define XDUKE_SUBVERSION 1
 
 #define MAX_KNOWN_GRP 4

@@ -501,9 +501,9 @@ void Error (int errorType, char *error, ...)
    SDL_Quit();
 
    if(errorType==EXIT_FAILURE)
-	   printf("ERROR: Please copy that screen and visit http://duke3d.m-klein.com for report:\n");
+	   printf("ERROR: Please copy that screen and visit https://github.com/earwigsinyourveins/13Duke for report:\n");
 	else
-		printf("http://duke3d.m-klein.com\n");
+		printf("https://github.com/earwigsinyourveins/13Duke\n");
 
    va_start (argptr, error);
    vprintf(error, argptr);

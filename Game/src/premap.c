@@ -1711,7 +1711,7 @@ if (!VOLUMEONE)
 		{
 			// all the players must have been validated to have the same rev as we do
 			if(!ud.rev[i][0] && !ps[i].fakeplayer)
-				Error(EXIT_SUCCESS, "Your opponent [%s] is using an unknown version of xDuke."
+				Error(EXIT_SUCCESS, "Your opponent [%s] is using an unknown version of 13Duke."
 									"You are using v%d.%d\n",
 				ud.user_name[i], XDUKE_REV_X, XDUKE_REV_DOT_Y);
 		}
@@ -1747,7 +1747,7 @@ if (!VOLUMEONE)
 //    if(ud.level_number == 0 && ud.recstat != 2) FTA(40,&ps[myconnectindex]);
 
 #ifdef CHECK_XDUKE_REV
-	sprintf(fta_quotes[103],"xDuke v%d.%d", ud.rev[myconnectindex][2], ud.rev[myconnectindex][3]);
+	sprintf(fta_quotes[103],"13Duke v%d.%d", ud.rev[myconnectindex][2], ud.rev[myconnectindex][3]);
 	FTA(103,&ps[myconnectindex],1);
 #endif
 
