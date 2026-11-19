@@ -1,0 +1,22 @@
+SDL_mixer 1.2.12 for 32-bit MinGW-w64 (i686)
+MSYS2 package: mingw-w64-i686-SDL_mixer-1.2.12-9-any.pkg.tar.zst
+
+Bundled development files:
+- include/SDL/SDL_mixer.h
+- lib/libSDL_mixer.dll.a
+- lib/libSDL_mixer.a
+- lib/pkgconfig/SDL_mixer.pc
+- bin/libSDL_mixer-1-2-0.dll
+- share/licenses/SDL_mixer/LICENSE
+
+The DLL is PE32/i386. Its direct imports include SDL.dll, libmad-0.dll,
+and libgcc_s_dw2-1.dll, in addition to Windows system DLLs. SDL.dll is
+bundled under deps/SDL-1.2.15/bin and copied to the project bin directory.
+The libmad runtime DLL and the MinGW GCC runtime are not included in this
+SDL_mixer package payload; they must be supplied by the matching MinGW32
+runtime installation or copied to the game bin directory for a standalone
+runtime distribution. Optional codec backends may require additional codec
+DLLs from the package dependencies (FLAC, Vorbis and MikMod).
+
+No SDL_mixer source or game simulation code is modified by this package
+integration.

@@ -1,0 +1,12 @@
+SDL 1.2.15 - MinGW32 (i686) development/runtime package
+
+Source package: mingw-w64-i686-SDL-1.2.15+r419+gef3a6c05-1-any.pkg.tar.zst
+Origin: official MSYS2 mingw32 package repository
+Target ABI: i686-w64-mingw32
+
+This directory contains the SDL headers, GNU import/static libraries, and SDL.dll
+from the supplied MSYS2 binary package. The original package archive and checksum
+are retained under deps/packages/.
+
+License metadata in the package identifies SDL as LGPL. Consult upstream SDL
+license terms before redistributing this bundle.

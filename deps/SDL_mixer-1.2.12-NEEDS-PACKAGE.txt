@@ -1,0 +1,10 @@
+SDL_mixer 1.2.12 MinGW32 development/runtime package is still required.
+
+Expected local layout once the matching package is added:
+  deps/SDL_mixer-1.2.12/include/SDL/SDL_mixer.h
+  deps/SDL_mixer-1.2.12/lib/libSDL_mixer.dll.a
+  deps/SDL_mixer-1.2.12/bin/SDL_mixer.dll
+
+The Makefile already points to this directory. The SDL_mixer package archive was
+not part of the uploaded files, so no substitute headers or libraries are included.
+Use the 32-bit MSYS2 package, not an MSVC .lib or 64-bit build.
