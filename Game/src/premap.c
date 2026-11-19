@@ -398,6 +398,29 @@ int countfragbars(void)
 }
 
 
+// 1.3d: 1.3D: coop always spawns at spot 0
+#if DUKE13D
+void pickrandomspot(short snum)
+{
+    struct player_struct *p;
+    short i;
+
+    p = &ps[snum];
+
+    if(ud.multimode > 1)
+    {
+        if(ud.coop != 1) i = TRAND%numplayersprites;
+        else i = 0;
+    }
+    else i = snum;
+
+    p->bobposx = p->oposx = p->posx = po[i].ox;
+    p->bobposy = p->oposy = p->posy = po[i].oy;
+    p->oposz = p->posz = po[i].oz;
+    p->ang = po[i].oa;
+    p->cursectnum = po[i].os;
+}
+#else
 void pickrandomspot(short snum)
 {
     struct player_struct *p;
@@ -415,7 +438,112 @@ void pickrandomspot(short snum)
     p->ang = po[i].oa;
     p->cursectnum = po[i].os;
 }
+#endif // DUKE13D
 
+// 1.3d: 1.3D player stat reset (no subweapon/wantweaponfire, aim_mode reset on new game/demo)
+#if DUKE13D
+void resetplayerstats(short snum)
+{
+    struct player_struct *p;
+    short i;
+
+    p = &ps[snum];
+
+    ud.show_help       = 0;
+    ud.showallmap       = 0;
+    if(ud.last_level == -1 || ud.recstat == 2) p->aim_mode = 0;
+    p->dead_flag        = 0;
+    p->wackedbyactor    = -1;
+    p->falling_counter  = 0;
+    p->quick_kick       = 0;
+    p->last_full_weapon = 0;
+    p->ftq              = 0;
+    p->fta              = 0;
+    p->tipincs          = 0;
+    p->buttonpalette    = 0;
+    p->actorsqu         =-1;
+    p->invdisptime      = 0;
+    p->refresh_inventory= 0;
+    p->last_pissed_time = 0;
+    p->holster_weapon   = 0;
+    p->pycount          = 0;
+    p->pyoff            = 0;
+    p->opyoff           = 0;
+    p->loogcnt          = 0;
+    p->angvel           = 0;
+    p->weapon_sway      = 0;
+//    p->select_dir       = 0;
+    p->extra_extra8     = 0;
+    p->show_empty_weapon= 0;
+    p->dummyplayersprite=-1;
+    p->crack_time       = 0;
+    p->hbomb_hold_delay = 0;
+    p->transporter_hold = 0;
+    p->hurt_delay       = 0;
+    p->footprintcount   = 0;
+    p->footprintpal     = 0;
+    p->footprintshade   = 0;
+    p->jumping_toggle   = 0;
+    p->ohoriz = p->horiz= 140;
+    p->horizoff         = 0;
+    p->bobcounter       = 0;
+    p->on_ground        = 0;
+    p->player_par       = 0;
+    p->return_to_center = 9;
+    p->airleft          = 15*26;
+    p->rapid_fire_hold  = 0;
+    p->toggle_key_flag  = 0;
+    p->access_spritenum = -1;
+    if(ud.multimode > 1 && ud.coop != 1 )
+        p->got_access = 7;
+    else p->got_access      = 0;
+    p->random_club_frame= 0;
+    pus = 1;
+    p->on_warping_sector = 0;
+    p->spritebridge      = 0;
+    p->palette = (char *) &palette[0];
+
+    if(p->steroids_amount < 400 )
+    {
+        p->steroids_amount = 0;
+        p->inven_icon = 0;
+    }
+    p->heat_on =            0;
+    p->jetpack_on =         0;
+    p->holoduke_on =       -1;
+
+    p->look_ang          = 512 - ((ud.level_number&1)<<10);
+
+    p->rotscrnang        = 0;
+    p->newowner          =-1;
+    p->jumping_counter   = 0;
+    p->hard_landing      = 0;
+    p->posxv             = 0;
+    p->posyv             = 0;
+    p->poszv             = 0;
+    fricxv            = 0;
+    fricyv            = 0;
+    p->somethingonplayer =-1;
+    p->one_eighty_count  = 0;
+    p->cheat_phase       = 0;
+
+    p->on_crane          = -1;
+
+    if(p->curr_weapon == PISTOL_WEAPON)
+        p->kickback_pic  = 5;
+    else p->kickback_pic = 0;
+
+    p->weapon_pos        = 6;
+    p->walking_snd_toggle= 0;
+    p->weapon_ang        = 0;
+
+    p->knuckle_incs      = 1;
+    p->fist_incs = 0;
+    p->knee_incs         = 0;
+    p->jetpack_on        = 0;
+    setpal(p);
+}
+#else
 void resetplayerstats(short snum)
 {
     struct player_struct *p;
@@ -521,6 +649,7 @@ void resetplayerstats(short snum)
 	p->auto_aim          = 2;
 	p->fakeplayer        = 0;
 }
+#endif // DUKE13D
 
 
 
@@ -954,6 +1083,10 @@ void prelevel(char g)
             case SCREENBREAK10:
             case SCREENBREAK11:
             case SCREENBREAK12:
+// 1.3d: no SCREENBREAK14-19 animwalls
+#if DUKE13D
+case SCREENBREAK13:
+#else
             case SCREENBREAK13:
             case SCREENBREAK14:
             case SCREENBREAK15:
@@ -961,6 +1094,7 @@ void prelevel(char g)
             case SCREENBREAK17:
             case SCREENBREAK18:
             case SCREENBREAK19:
+#endif // DUKE13D
 
                 animwall[numanimwalls].wallnum = i;
                 animwall[numanimwalls].tag = wal->picnum;
@@ -1031,7 +1165,13 @@ void newgame(char vn,char ln,char sk)
     parallaxyscale = 0;
 
     ud.last_level = -1;
+// 1.3d: newgame: aim_mode reset in single player
+#if DUKE13D
+if(ud.multimode < 2) p->aim_mode = 0;
     lastsavedpos = -1;
+#else
+    lastsavedpos = -1;
+#endif // DUKE13D
     p->zoom            = 768;
     p->gm              = 0;
 
@@ -1231,6 +1371,15 @@ void resetpspritevars(char g)
 
             s->yvel = j;
 
+// 1.3d: 1.3D player colour assignment
+#if DUKE13D
+if(ud.last_level == -1)
+            {
+                ps[j].palookup = which_palookup; s->pal = which_palookup; ud.player_color[j] = which_palookup++;
+                if( which_palookup == 17 ) which_palookup = 9;
+            }
+            else s->pal = ps[j].palookup = ud.player_color[j];
+#else
             if(s->pal == 0)
             {
                 s->pal = ps[j].palookup = which_palookup;
@@ -1238,6 +1387,7 @@ void resetpspritevars(char g)
                 if( which_palookup >= 17 ) which_palookup = 9;
             }
             else ps[j].palookup = s->pal;
+#endif // DUKE13D
 
             ps[j].i = i;
             ps[j].frag_ps = j;
@@ -1267,6 +1417,34 @@ void clearfrags(void)
      clearbufbyte(&frags[0][0],(MAXPLAYERS*MAXPLAYERS)<<1,0L);
 }
 
+// 1.3d: 1.3D clears sync/frag/lag state at level start
+#if DUKE13D
+void resettimevars(void)
+{
+    short i;
+    vel = svel = angvel = horiz = 0;
+    syncvaltail = 0L;
+    syncvaltottail = 0L;
+    syncstat = 0;
+    bufferjitter = 1;
+    mymaxlag = otherminlag = 0;
+    clearbufbyte(myminlag,MAXPLAYERS<<2,0L);
+    clearbufbyte(&loc,sizeof(input),0L);
+    for(i=0;i<MAXPLAYERS;i++)
+    {
+        clearbufbyte(&sync[i],sizeof(input),0L);
+        ps[i].frag = ps[i].fraggedself = 0;
+        syncvalhead[i] = 0;
+    }
+    clearbufbyte(&frags[0][0],(MAXPLAYERS*MAXPLAYERS)<<1,0L);
+    totalclock = 0L;
+	cloudtotalclock = 0L;
+    ototalclock = 0L;
+	cloudtotalclock = 0L;
+    lockclock = 0L;
+    ready2send = 1;
+}
+#else
 void resettimevars(void)
 {
     vel = svel = angvel = horiz = 0;
@@ -1277,6 +1455,7 @@ void resettimevars(void)
     lockclock = 0L;
     ready2send = 1;
 }
+#endif // DUKE13D
 
 
 void genspriteremaps(void)

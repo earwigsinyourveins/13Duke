@@ -173,8 +173,13 @@ struct player_struct;
 extern int g_iTickRate;
 extern int g_iTicksPerFrame;
 
+#if DUKE13D
+#define TICRATE 120                 /* 1.3D: fixed */
+#define TICSPERFRAME (TICRATE/26)   /* = 4 */
+#else
 #define TICRATE g_iTickRate
 #define TICSPERFRAME (TICRATE/g_iTicksPerFrame)
+#endif
 
 // #define GC (TICSPERFRAME*44)
 
@@ -375,6 +380,7 @@ struct user_defs
     char savegame[10][22];
     char pwlockout[128],rtsname[128];
     char overhead_on,last_overhead;
+    char player_color[MAXPLAYERS]; /* 1.3D: palookup chosen at game start */
 
     short pause_on,from_bonus;
     short camerasprite,last_camsprite;

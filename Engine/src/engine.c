@@ -281,6 +281,27 @@ unsigned short mapCRC;
 
 #include "a.h"
 
+// 1.3d: 1.3D sqrt algorithm (2048-word table)
+#if DUKE13D
+static __inline long nsqrtasm(unsigned long param)
+{
+    /* 1.3D square root: BSR-normalised lookup in a 2048-word table (see sqrt.c) */
+    long eax = (long)param, cl;
+    if (eax < 0) eax = -eax;
+    if (eax == 0) return 0;
+    cl = 31 - __builtin_clz((unsigned long)eax);
+    if (cl >= 11)
+    {
+        cl = (cl-9)&0xfe;
+        eax >>= cl;
+        eax = sqrtable[eax&4095];
+        cl >>= 1;
+        eax <<= cl;
+    }
+    else eax = sqrtable[eax&4095];
+    return eax >> 10;
+}
+#else
 static __inline long nsqrtasm(unsigned long param)
 {
     unsigned short *shlookup_a = (unsigned short*)shlookup;
@@ -298,6 +319,7 @@ static __inline long nsqrtasm(unsigned long param)
 
     return param;
 }
+#endif // DUKE13D
 
 static __inline long krecipasm(long i)
 { // Ken did this
@@ -2538,9 +2560,14 @@ int loadboard(char *filename, long *daposx, long *daposy,
 	// Not reseting the array will leave dumps fooling 
 	// the function saveplayer(), eg at if(actorscrptr[PN] == 0)
 	// where PN is sprite[i].picnum was beyong actorscrptr[] size)
+// 1.3d: loadboard keeps stale sprite/sector/wall data from the previous level
+#if DUKE13D
+/* 1.3D does not clear the arrays: stale data from the previous level stays in unused slots */
+#else
 	memset(sprite, 0, sizeof(sprite));
 	memset(sector, 0, sizeof(sector));
 	memset(wall, 0, sizeof(wall));
+#endif // DUKE13D
 
 	if ((fil = kopen4load(filename, 0)) == -1)
 		{ mapversion = 7L; return(-1); }
@@ -2807,6 +2834,37 @@ int saveboard(char *filename, long *daposx, long *daposy,
 }
 
 
+// 1.3d: 1.3D sqrt table (rounded Newton root of i<<20, 2048 entries)
+#if DUKE13D
+static void initksqrt(void)
+{
+	unsigned long i, root, num;
+	long temp;
+
+	for(i=0;i<2048;i++)
+	{
+		root = 128;
+		num = i<<20;
+		do
+		{
+			temp = root;
+			root = (root+num/root)>>1;
+		} while((temp-root+1) > 2);
+		temp = root*root-num;
+		while (klabs(temp-2*root+1) < klabs(temp))
+		{
+			temp += -(2*root)+1;
+			root--;
+		}
+		while (klabs(temp+2*root+1) < klabs(temp))
+		{
+			temp += 2*root+1;
+			root++;
+		}
+		sqrtable[i] = root;
+	}
+}
+#else
 static void initksqrt(void)
 {
 	long i, j, k;
@@ -2820,6 +2878,7 @@ static void initksqrt(void)
 		if (i < 256) shlookup[i+4096] = ((k+6)<<1)+((10-(k+6))<<8);
 	}
 }
+#endif // DUKE13D
 
 
 static void loadtables(void)
@@ -3886,6 +3945,35 @@ void drawline256 (long x1, long y1, long x2, long y2, unsigned char col)
 }
 
 
+// 1.3d: 1.3D point-in-sector crossing arithmetic
+#if DUKE13D
+int inside(long x, long y, short sectnum)
+{
+	walltype *wal;
+	long i, x1, y1, x2, y2;
+	long cnt;
+
+	if ((sectnum < 0) || (sectnum >= numsectors)) return(-1);
+
+	cnt = 0;
+	wal = &wall[sector[sectnum].wallptr];
+	i = sector[sectnum].wallnum;
+	do
+	{
+		y1 = wal->y-y; y2 = wall[wal->point2].y-y;
+		if ((y1^y2) < 0)
+		{
+			x1 = wal->x-x; x2 = wall[wal->point2].x-x;
+			if ((x1^x2) < 0)
+				cnt ^= (x1*y2-x2*y1)^(y1-y2);
+			else
+				cnt ^= ~x1;
+		}
+		wal++; i--;
+	} while (i);
+	return(cnt<0);
+}
+#else
 int inside(long x, long y, short sectnum)
 {
 	walltype *wal;
@@ -3909,6 +3997,7 @@ int inside(long x, long y, short sectnum)
 	} while (i);
 	return(cnt>>31);
 }
+#endif // DUKE13D
 
 
 int getangle(long xvect, long yvect)
@@ -5618,6 +5707,54 @@ int nextsectorneighborz(short sectnum, long thez,
 }
 
 
+// 1.3d: 1.3D signed visibility intersection tests
+#if DUKE13D
+int cansee(long x1, long y1, long z1, short sect1, long x2, long y2, long z2, short sect2)
+{
+	sectortype *sec;
+	walltype *wal, *wal2;
+	long i, cnt, nexts, x, y, z, cz, fz, dasectnum, dacnt, danum;
+	long x21, y21, z21, x31, y31, x34, y34, bot, t;
+
+	if ((x1 == x2) && (y1 == y2)) return(sect1 == sect2);
+
+	x21 = x2-x1; y21 = y2-y1; z21 = z2-z1;
+
+	clipsectorlist[0] = sect1; danum = 1;
+	for(dacnt=0;dacnt<danum;dacnt++)
+	{
+		dasectnum = clipsectorlist[dacnt]; sec = &sector[dasectnum];
+		for(cnt=sec->wallnum,wal=&wall[sec->wallptr];cnt>0;cnt--,wal++)
+		{
+			wal2 = &wall[wal->point2];
+			x31 = wal->x-x1; x34 = wal->x-wal2->x;
+			y31 = wal->y-y1; y34 = wal->y-wal2->y;
+
+			bot = y21*x34-x21*y34; if (bot <= 0) continue;
+			t = y21*x31-x21*y31; if ((t < 0) || (t >= bot)) continue;
+			t = y31*x34-x31*y34; if ((t < 0) || (t >= bot)) continue;
+
+			nexts = wal->nextsector;
+			if ((nexts < 0) || (wal->cstat&32)) return(0);
+
+			t = divscale24(t,bot);
+			x = x1 + mulscale24(x21,t);
+			y = y1 + mulscale24(y21,t);
+			z = z1 + mulscale24(z21,t);
+
+			getzsofslope((short)dasectnum,x,y,&cz,&fz);
+			if ((z <= cz) || (z >= fz)) return(0);
+			getzsofslope((short)nexts,x,y,&cz,&fz);
+			if ((z <= cz) || (z >= fz)) return(0);
+
+			for(i=danum-1;i>=0;i--) if (clipsectorlist[i] == nexts) break;
+			if (i < 0) clipsectorlist[danum++] = nexts;
+		}
+	}
+	for(i=danum-1;i>=0;i--) if (clipsectorlist[i] == sect2) return(1);
+	return(0);
+}
+#else
 int cansee(long x1, long y1, long z1, short sect1,
             long x2, long y2, long z2, short sect2)
 {
@@ -5664,6 +5801,7 @@ int cansee(long x1, long y1, long z1, short sect1,
 	for(i=danum-1;i>=0;i--) if (clipsectorlist[i] == sect2) return(1);
 	return(0);
 }
+#endif // DUKE13D
 
 
 int lintersect(long x1, long y1, long z1, long x2, long y2, long z2,
@@ -6502,11 +6640,19 @@ int clipmove (long *x, long *y, long *z, short *sectnum,
 			{
 				j = hitwalls[i];
 				templong2 = dmulscale6(clipit[j].x2-clipit[j].x1,oxvect,clipit[j].y2-clipit[j].y1,oyvect);
+// 1.3d: clipmove: no updatesector() when squeezed through a wall
+#if DUKE13D
+if ((templong1^templong2) < 0)
+			{
+				return(retval);
+			}
+#else
 				if ((templong1^templong2) < 0)
 				{
 					updatesector(*x,*y,sectnum);
 					return(retval);
 				}
+#endif // DUKE13D
 			}
 
 			keepaway(&goalx, &goaly, hitwall);
@@ -6564,6 +6710,141 @@ int clipmove (long *x, long *y, long *z, short *sectnum,
 }
 
 
+// 1.3d: 1.3D pushmove: pushes only against walls/sectors, not sprites
+#if DUKE13D
+int pushmove(long *x, long *y, long *z, short *sectnum,
+			 long walldist, long ceildist, long flordist, unsigned long cliptype)
+{
+	sectortype *sec, *sec2;
+	walltype *wal, *wal2;
+	spritetype *spr;
+	long i, j, k, t, dx, dy, dax, day, daz, daz2, bad, dir;
+	long dasprclipmask, dawalclipmask;
+	short startwall, endwall, clipsectcnt;
+	char bad2;
+
+	if ((*sectnum) < 0) return(-1);
+
+	dawalclipmask = (cliptype&65535);
+	dasprclipmask = (cliptype>>16);
+
+	k = 32;
+	dir = 1;
+	do
+	{
+		bad = 0;
+
+		clipsectorlist[0] = *sectnum;
+		clipsectcnt = 0; clipsectnum = 1;
+		do
+		{
+			/*Push FACE sprites
+			for(i=headspritesect[clipsectorlist[clipsectcnt]];i>=0;i=nextspritesect[i])
+			{
+				spr = &sprite[i];
+				if (((spr->cstat&48) != 0) && ((spr->cstat&48) != 48)) continue;
+				if ((spr->cstat&dasprclipmask) == 0) continue;
+
+				dax = (*x)-spr->x; day = (*y)-spr->y;
+				t = (spr->clipdist<<2)+walldist;
+				if ((klabs(dax) < t) && (klabs(day) < t))
+				{
+					t = ((tilesizy[spr->picnum]*spr->yrepeat)<<2);
+					if (spr->cstat&128) daz = spr->z+(t>>1); else daz = spr->z;
+					if (picanm[spr->picnum]&0x00ff0000) daz -= ((long)((signed char)((picanm[spr->picnum]>>16)&255))*spr->yrepeat<<2);
+					if (((*z) < daz+ceildist) && ((*z) > daz-t-flordist))
+					{
+						t = (spr->clipdist<<2)+walldist;
+
+						j = getangle(dax,day);
+						dx = (sintable[(j+512)&2047]>>11);
+						dy = (sintable[(j)&2047]>>11);
+						bad2 = 16;
+						do
+						{
+							*x = (*x) + dx; *y = (*y) + dy;
+							bad2--; if (bad2 == 0) break;
+						} while ((klabs((*x)-spr->x) < t) && (klabs((*y)-spr->y) < t));
+						bad = -1;
+						k--; if (k <= 0) return(bad);
+						updatesector(*x,*y,sectnum);
+					}
+				}
+			}*/
+
+			sec = &sector[clipsectorlist[clipsectcnt]];
+			if (dir > 0)
+				startwall = sec->wallptr, endwall = startwall + sec->wallnum;
+			else
+				endwall = sec->wallptr, startwall = endwall + sec->wallnum;
+
+			for(i=startwall,wal=&wall[startwall];i!=endwall;i+=dir,wal+=dir)
+				if (clipinsidebox(*x,*y,i,walldist-4) == 1)
+				{
+					j = 0;
+					if (wal->nextsector < 0) j = 1;
+					if (wal->cstat&dawalclipmask) j = 1;
+					if (j == 0)
+					{
+						sec2 = &sector[wal->nextsector];
+
+
+							//Find closest point on wall (dax, day) to (*x, *y)
+						dax = wall[wal->point2].x-wal->x;
+						day = wall[wal->point2].y-wal->y;
+						daz = dax*((*x)-wal->x) + day*((*y)-wal->y);
+						if (daz <= 0)
+							t = 0;
+						else
+						{
+							daz2 = dax*dax+day*day;
+							if (daz >= daz2) t = (1<<30); else t = divscale30(daz,daz2);
+						}
+						dax = wal->x + mulscale30(dax,t);
+						day = wal->y + mulscale30(day,t);
+
+
+						daz = getflorzofslope(clipsectorlist[clipsectcnt],dax,day);
+						daz2 = getflorzofslope(wal->nextsector,dax,day);
+						if ((daz2 < daz-(1<<8)) && ((sec2->floorstat&1) == 0))
+							if (*z >= daz2-(flordist-1)) j = 1;
+
+						daz = getceilzofslope(clipsectorlist[clipsectcnt],dax,day);
+						daz2 = getceilzofslope(wal->nextsector,dax,day);
+						if ((daz2 > daz+(1<<8)) && ((sec2->ceilingstat&1) == 0))
+							if (*z <= daz2+(ceildist-1)) j = 1;
+					}
+					if (j != 0)
+					{
+						j = getangle(wall[wal->point2].x-wal->x,wall[wal->point2].y-wal->y);
+						dx = (sintable[(j+1024)&2047]>>11);
+						dy = (sintable[(j+512)&2047]>>11);
+						bad2 = 16;
+						do
+						{
+							*x = (*x) + dx; *y = (*y) + dy;
+							bad2--; if (bad2 == 0) break;
+						} while (clipinsidebox(*x,*y,i,walldist-4) != 0);
+						bad = -1;
+						k--; if (k <= 0) return(bad);
+						updatesector(*x,*y,sectnum);
+					}
+					else
+					{
+						for(j=clipsectnum-1;j>=0;j--)
+							if (wal->nextsector == clipsectorlist[j]) break;
+						if (j < 0) clipsectorlist[clipsectnum++] = wal->nextsector;
+					}
+				}
+
+			clipsectcnt++;
+		} while (clipsectcnt < clipsectnum);
+		dir = -dir;
+	} while (bad != 0);
+
+	return(bad);
+}
+#else
 int pushmove(long *x, long *y, long *z, short *sectnum,
              long walldist, long ceildist, long flordist,
              unsigned long cliptype)
@@ -6699,6 +6980,7 @@ int pushmove(long *x, long *y, long *z, short *sectnum,
 
 	return(bad);
 }
+#endif // DUKE13D
 
 
 void updatesector(long x, long y, short *sectnum)
@@ -8342,6 +8624,23 @@ int sectorofwall(short theline)
 }
 
 
+// 1.3d: 1.3D slope z formula (divscale15/dmulscale23)
+#if DUKE13D
+int getceilzofslope(short sectnum, long dax, long day)
+{
+	long dx, dy, i, j;
+
+	if (!(sector[sectnum].ceilingstat&2)) return(sector[sectnum].ceilingz);
+	j = sector[sectnum].wallptr;
+    i = wall[j].point2;
+	dx = wall[i].x-wall[j].x;
+	dy = wall[i].y-wall[j].y;
+	i = (nsqrtasm(dx*dx+dy*dy)); if (i == 0) return(sector[sectnum].ceilingz);
+	i = divscale15(sector[sectnum].ceilingheinum,i);
+	dx *= i; dy *= i;
+	return(sector[sectnum].ceilingz+dmulscale23(dx,day-wall[j].y,-dy,dax-wall[j].x));
+}
+#else
 int getceilzofslope(short sectnum, long dax, long day)
 {
 	long dx, dy, i, j;
@@ -8354,8 +8653,26 @@ int getceilzofslope(short sectnum, long dax, long day)
 	j = dmulscale3(dx,day-wal->y,-dy,dax-wal->x);
 	return(sector[sectnum].ceilingz+scale(sector[sectnum].ceilingheinum,j,i));
 }
+#endif // DUKE13D
 
 
+// 1.3d: 1.3D slope z formula (divscale15/dmulscale23)
+#if DUKE13D
+int getflorzofslope(short sectnum, long dax, long day)
+{
+	long dx, dy, i, j;
+
+	if (!(sector[sectnum].floorstat&2)) return(sector[sectnum].floorz);
+	j = sector[sectnum].wallptr;
+    i = wall[j].point2;
+	dx = wall[i].x-wall[j].x;
+	dy = wall[i].y-wall[j].y;
+	i = (nsqrtasm(dx*dx+dy*dy)); if (i == 0) return(sector[sectnum].floorz);
+	i = divscale15(sector[sectnum].floorheinum,i);
+	dx *= i; dy *= i;
+	return(sector[sectnum].floorz+dmulscale23(dx,day-wall[j].y,-dy,dax-wall[j].x));
+}
+#else
 int getflorzofslope(short sectnum, long dax, long day)
 {
 	long dx, dy, i, j;
@@ -8368,6 +8685,7 @@ int getflorzofslope(short sectnum, long dax, long day)
 	j = dmulscale3(dx,day-wal->y,-dy,dax-wal->x);
 	return(sector[sectnum].floorz+scale(sector[sectnum].floorheinum,j,i));
 }
+#endif // DUKE13D
 
 
 void getzsofslope(short sectnum, long dax, long day, long *ceilz, long *florz)

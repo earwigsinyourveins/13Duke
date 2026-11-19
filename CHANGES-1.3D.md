@@ -48,3 +48,34 @@ gamedef.c: makeitfall gravity constant 176.   actors.c: friendly fire always on.
 5. gamedef.c parse/parsecommand (1.3D CON has 99 keywords), menues.c/sounds.c deltas.
 6. Engine: engine.c (Build 19960320 vs later: clipmove, hitscan, updatesector...), mmulti.c.
 RISK: argument evaluation order of EGS(...TRAND()...) differs between Watcom and gcc; verify against GAME.S/ACTORS.S.
+
+## ROUND 3 (engine first, then player/actors/game/premap/CON)
+Engine/src/engine.c  (reference: Build LIBVER 19960320)
+- nsqrtasm/initksqrt: 1.3D square root = BSR-normalised lookup in a 2048-word table (xDuke uses a later 4096-word/shlookup one).
+  Affects ksqrt(), slope z, hitscan/neartag slope handling, clipmove radius.
+- getceilzofslope/getflorzofslope: 1.3D formula (divscale15 + dmulscale23).
+- clipmove: no updatesector() on the "squeezed through a wall" early return.
+- pushmove: 1.3D version (walls/sectors only; xDuke additionally pushes away from sprites).
+- inside(), cansee(): 1.3D arithmetic.
+- loadboard: no memset of sprite/sector/wall (stale data from previous level stays, as in 1.3D).
+Game/src/player.c
+- processinput(): whole 1.3D function (jump/gravity/lava/boots/knock-back/weapon state machine; look L/R from recorded bits).
+- shoot(): whole 1.3D function (no GROWSPARK; 1.3D ammo, clipdist, OOZ and water-splash rules).
+- getinput(): bits 6/7 are look-left/right again (xDuke overwrote them with autoaim/autoswitch); medkit bit unfiltered.
+- weapon_tiles[] added.
+Game/src/actors.c: movesprite, insertspriteq (fixed 64-entry decal queue), ifsquished, moveplayers, movedummyplayers, movefta,
+  ifhitbyweapon, addweapon, movefallers, guts, hitradius, moveweapons, moveexplosions, movetransports, movestandables,
+  moveactors, moveeffectors, checkavailweapon -> 1.3D versions.
+Game/src/game.c: spawn(), badguy(), badguypic() -> 1.3D (monster lists, laser/frame-effect/clock/blimp rules, RNG order).
+Game/src/gamedef.c: parse() -> 1.3D CON semantics (size change steps, weapreccnt 256, debris RNG, ifspawnedby, quickkick...).
+Game/src/premap.c: pickrandomspot, resetplayerstats, resettimevars -> 1.3D; player colour assignment (ud.player_color added);
+  aim_mode reset in newgame(); no SCREENBREAK14-19 animwalls.
+Game/src/duke3d.h: TICRATE=120, TICSPERFRAME=4 fixed under DUKE13D.
+
+## NOT DONE / UNVERIFIED
+- Nothing was run: only gcc -fsyntax-only on Linux against the original (no new errors).
+- moveeffectors/actors: recovered C for the effector loop is only partly verified; GAME.S/ACTORS.S is the authority.
+- gamedef.c parsecommand (CON compiler) left as xDuke (1.3D differences are mostly xDuke-only extra commands).
+- game.c: getpackets, domovethings, fakedomovethings, faketimerhandler, checksync, nonsharedkeys/cheats (net/UI/cheat paths) not compared in depth.
+- Argument evaluation order of EGS(...TRAND()...) (Watcom vs gcc) not yet checked against the assembly.
+- displayweapon/menu/sound/config code deliberately untouched (render/UI).
