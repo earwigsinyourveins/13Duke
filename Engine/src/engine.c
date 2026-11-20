@@ -2337,6 +2337,16 @@ void drawrooms(long daposx, long daposy, long daposz,
 		updatesector(globalposx,globalposy,&globalcursectnum);
 		if (globalcursectnum < 0) globalcursectnum = i;
 	}
+#if DUKE13D
+	/* 1.3D: a player squished out of the map has cursectnum -1.  DOS read garbage from sector[-1] and survived;
+	   on Windows the garbage wallptr indexes outside wall[] and faults (crash in drawrooms).  Render-only fallback. */
+	{
+		static short lastdrawsect = 0;
+		if ((unsigned)globalcursectnum >= (unsigned)numsectors)
+			globalcursectnum = (lastdrawsect < numsectors) ? lastdrawsect : 0;
+		else lastdrawsect = globalcursectnum;
+	}
+#endif
 
 	globparaceilclip = 1;
 	globparaflorclip = 1;

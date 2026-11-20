@@ -453,6 +453,25 @@ int FindDistance2D(int ix, int iy)
   int   t;
 
   ix= abs(ix);        /* absolute values */
+// 1.3d: FindDistance2D: exact on axis-aligned vectors
+#if DUKE13D
+iy= abs(iy);
+
+  /* 1.3D (MACT mathutil.c): exact result when either component is zero */
+  if (iy==0) return ix;
+  if (ix==0) return iy;
+
+  if (ix<iy)
+  {
+     int tmp = ix;
+     ix = iy;
+     iy = tmp;
+  }
+
+  t = iy + (iy>>1);
+
+  return (ix - (ix>>5) - (ix>>7)  + (t>>2) + (t>>6));
+#else
   iy= abs(iy);
 
   if (ix<iy)
@@ -465,6 +484,7 @@ int FindDistance2D(int ix, int iy)
   t = iy + (iy>>1);
 
   return (ix - (ix>>5) - (ix>>7)  + (t>>2) + (t>>6));
+#endif // DUKE13D
 }
 
 int FindDistance3D(int ix, int iy, int iz)

@@ -9825,8 +9825,55 @@ static int load_duke3d_groupfile(void)
 	return(initgroupfile(groupfilefullpath) != -1);
 }
 
+#if defined(WIN32) && DUKE13D && defined(__i386__)
+#include <windows.h>
+/* Writes 13duke_crash.txt when the process dies from an unhandled exception.
+   Resolve the "rva" values with:  addr2line -f -e <exe> 0x<rva+0x400000>
+   (build without -s / with -g so the exe keeps its symbols). */
+static LONG WINAPI Duke13D_CrashFilter(EXCEPTION_POINTERS *ep)
+{
+    FILE *f = fopen("13duke_crash.txt","w");
+    CONTEXT *c = ep->ContextRecord;
+    EXCEPTION_RECORD *r = ep->ExceptionRecord;
+    DWORD base = (DWORD)GetModuleHandle(NULL), size = 0, *sp, n;
+    IMAGE_DOS_HEADER *dh = (IMAGE_DOS_HEADER *)base;
+    if (f == NULL) f = stderr;
+    if (dh->e_magic == IMAGE_DOS_SIGNATURE)
+        size = ((IMAGE_NT_HEADERS *)(base+dh->e_lfanew))->OptionalHeader.SizeOfImage;
+    fprintf(f,"13Duke crash report\n");
+    fprintf(f,"exception=%08lX  address=%08lX  module_base=%08lX  rva=%08lX\n",
+            (unsigned long)r->ExceptionCode,(unsigned long)r->ExceptionAddress,(unsigned long)base,
+            (unsigned long)((DWORD)r->ExceptionAddress-base));
+    if (r->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && r->NumberParameters >= 2)
+        fprintf(f,"access violation: %s address %08lX\n",r->ExceptionInformation[0]?"writing":"reading",
+                (unsigned long)r->ExceptionInformation[1]);
+    fprintf(f,"eax=%08lX ebx=%08lX ecx=%08lX edx=%08lX esi=%08lX edi=%08lX ebp=%08lX esp=%08lX\n",
+            (unsigned long)c->Eax,(unsigned long)c->Ebx,(unsigned long)c->Ecx,(unsigned long)c->Edx,
+            (unsigned long)c->Esi,(unsigned long)c->Edi,(unsigned long)c->Ebp,(unsigned long)c->Esp);
+    fprintf(f,"state: randomseed=%08lX totalclock=%ld recstat=%d reccnt=%ld level=%d vol=%d screenpeek=%d myconnectindex=%d multimode=%d\n",
+            (unsigned long)randomseed,(long)totalclock,(int)ud.recstat,(long)ud.reccnt,(int)ud.level_number,
+            (int)ud.volume_number,(int)screenpeek,(int)myconnectindex,(int)ud.multimode);
+    if (screenpeek >= 0 && screenpeek < MAXPLAYERS)
+        fprintf(f,"pov player: pos=%ld,%ld,%ld sect=%d extra=%d dead_flag=%d steroids=%d\n",
+                (long)ps[screenpeek].posx,(long)ps[screenpeek].posy,(long)ps[screenpeek].posz,
+                (int)ps[screenpeek].cursectnum,(int)sprite[ps[screenpeek].i].extra,(int)ps[screenpeek].dead_flag,
+                (int)ps[screenpeek].steroids_amount);
+    fprintf(f,"stack words that point into the executable (possible return addresses, rva):\n");
+    sp = (DWORD *)c->Esp;
+    if (!IsBadReadPtr(sp,256*sizeof(DWORD)))
+        for (n = 0; n < 256; n++)
+            if (sp[n] >= base && sp[n] < base+size) fprintf(f,"  [esp+%03lX] rva=%08lX\n",(unsigned long)(n*4),(unsigned long)(sp[n]-base));
+    if (f != stderr) fclose(f);
+    fprintf(stderr,"13Duke crashed; details written to 13duke_crash.txt\n");
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+#endif
+
 int main(int argc,char **argv)
 {
+#if defined(WIN32) && DUKE13D && defined(__i386__)
+    SetUnhandledExceptionFilter(Duke13D_CrashFilter);
+#endif
     long i, j, k, l;
 	int32 iScriptHandle;
 	long filehandle;
@@ -11560,7 +11607,7 @@ char domovethings(void)
 #endif
 
     for(i=connecthead;i>=0;i=connectpoint2[i])
-        if( sync[i].bits&(1<<17) )
+        if( !DUKE13D && (sync[i].bits&(1<<17)) ) /* 1.3D: bit 17 is not a multiplayer save/load request */
     {
         multiflag = 2;
         multiwhat = (sync[i].bits>>18)&1;
@@ -12373,6 +12420,27 @@ void cameratext(short i)
     }
 }
 
+// 1.3d: 1.3D wall-glass spawn: 3 TRAND per piece, fixed order, no z jitter
+#if DUKE13D
+void vglass(long x,long y,short a,short wn,short n)
+{
+    long z, zincs;
+    short sect, pic, ang, xvel;
+
+    sect = wall[wn].nextsector;
+    if(sect == -1) return;
+    zincs = ( sector[sect].floorz-sector[sect].ceilingz ) / n;
+
+    for(z = sector[sect].ceilingz;z < sector[sect].floorz; z += zincs )
+    {
+        /* 1.3D evaluates these three krand() calls in this order (see GAME.S vglass_) */
+        xvel = 16+(TRAND&31);
+        ang  = a+128-(TRAND&255);
+        pic  = GLASSPIECES+(z&(TRAND%3));
+        EGS(sect,x,y,z,pic,-32,36,36,ang,xvel,0,-1,5);
+    }
+}
+#else
 void vglass(long x,long y,short a,short wn,short n)
 {
     long z, zincs;
@@ -12385,6 +12453,7 @@ void vglass(long x,long y,short a,short wn,short n)
     for(z = sector[sect].ceilingz;z < sector[sect].floorz; z += zincs )
         EGS(sect,x,y,z-(TRAND&8191),GLASSPIECES+(z&(TRAND%3)),-32,36,36,a+128-(TRAND&255),16+(TRAND&31),0,-1,5);
 }
+#endif // DUKE13D
 
 void lotsofglass(short i,short wallnum,short n)
 {
