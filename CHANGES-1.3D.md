@@ -83,7 +83,7 @@ Game/src/duke3d.h: TICRATE=120, TICSPERFRAME=4 fixed under DUKE13D.
 ## ROUND 5 (merged onto the user's 13Duke-1.1 tree: timer/tic counter + demo playback controls kept as-is)
 - global.c FindDistance2D: added the two 1.3D zero-axis returns (iy==0 -> ix, ix==0 -> iy), as in MACT mathutil.c.
   Without them axis-aligned distances came out ~4% short (affects ldist, targeting, radius checks).
-  FindDistance3D already matched 1.3D.
+  FindDistance3D already matched 1.3D. Thanks to HellFire aka reu for pointers.
 - game.c vglass(): 3 TRAND per glass piece in the order xvel, ang, tile (GAME.S vglass_), no z jitter.
   (xDuke drew a 4th TRAND per piece -> RNG diverged at every window shatter.)
 - game.c domovethings: xDuke "multiflag" save/load block (input bit 17) disabled under DUKE13D.
