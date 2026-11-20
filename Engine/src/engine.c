@@ -5730,6 +5730,10 @@ int cansee(long x1, long y1, long z1, short sect1, long x2, long y2, long z2, sh
 
 	x21 = x2-x1; y21 = y2-y1; z21 = z2-z1;
 
+	/* A player squished out of the map has cursectnum -1.  DOS read harmless garbage from sector[-1];
+	   here the garbage wall index runs far outside wall[] and faults.  An invalid sector sees nothing. */
+	if ((unsigned)sect1 >= (unsigned)numsectors || (unsigned)sect2 >= (unsigned)numsectors) return(0);
+
 	clipsectorlist[0] = sect1; danum = 1;
 	for(dacnt=0;dacnt<danum;dacnt++)
 	{

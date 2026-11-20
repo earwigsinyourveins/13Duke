@@ -2,7 +2,7 @@
 /*
 Copyright (C) 1996, 2003 - 3D Realms Entertainment
 
-This file is part of Duke Nukem 3D version 1.5 - Atomic Edition
+This file is part of Duke Nukem 3D version 1.5 - Atomic Edition //MAWXIWTZ: not anymore... lol
 
 Duke Nukem 3D is free software; you can redistribute it and/or
 modify it under the terms of the GNU General Public License
@@ -1895,13 +1895,14 @@ void menus(void)
         case 995:
         case 996:
         case 997:
+        case 998:
 			c = 160;
 			if (!PLUTOPAK) {
             	//rotatesprite(c<<16,200<<15,65536L,0,MENUSCREEN,16,0,10+64,0,0,xdim-1,ydim-1);
             	rotatesprite(c<<16,19<<16,65536L,0,MENUBAR,16,0,10,0,0,xdim-1,ydim-1);
             	menutext(c,24,0,0,"CREDITS");
 
-				l = 7;
+				l = 8;
 			} else {
 				l = 2;
 			}
@@ -1952,6 +1953,13 @@ void menus(void)
 			if (!PLUTOPAK) { // This is Jonathon Fowler code. Text respects the true 1.3/1.3d --mk
 			switch (current_menu) {
 				case 990:
+					gametext(c,58,  "13Duke by: Mawxiwtz aka Riki-Oh",0,2+8+16);
+					gametext(c,84,  "Duke Nukem 3D 1.3d decomp by:",0,2+8+16);
+					gametext(c,96,  "Abedegno",0,2+8+16);
+					gametext(c,122, "Special thanks to:",0,2+8+16);
+					gametext(c,134, "Poda, HellFire aka reu, P4ft",0,2+8+16);
+					break;
+				case 991:
 					gametext(c,40,                      "ORIGINAL CONCEPT",0,2+8+16);
 					gametext(c,40+9,                    "TODD REPLOGLE",0,2+8+16);
 					gametext(c,40+9+9,                  "ALLEN H. BLUM III",0,2+8+16);
@@ -1965,7 +1973,7 @@ void menus(void)
 					gametext(c,40+9+9+9+9+9+9+9+9+9+9,  "BUILD ENGINE",0,2+8+16);
 					gametext(c,40+9+9+9+9+9+9+9+9+9+9+9,"KEN SILVERMAN",0,2+8+16);
 					break;
-				case 991:
+				case 992:
 					gametext(c,40,                      "GAME PROGRAMMING",0,2+8+16);
 					gametext(c,40+9,                    "TODD REPLOGLE",0,2+8+16);
 						
@@ -1975,7 +1983,7 @@ void menus(void)
 					gametext(c,40+9+9+9+9+9+9,          "NETWORK LAYER/SETUP PROGRAM",0,2+8+16);
 					gametext(c,40+9+9+9+9+9+9+9,        "MARK DOCHTERMANN",0,2+8+16);
 					break;
-				case 992:
+				case 993:
 					gametext(c,40,                      "MAP DESIGN",0,2+8+16);
 					gametext(c,40+9,                    "ALLEN H BLUM III",0,2+8+16);
 					gametext(c,40+9+9,                  "RICHARD GRAY",0,2+8+16);
@@ -1989,7 +1997,7 @@ void menus(void)
 					gametext(c,40+9+9+9+9+9+9+9+9+9+9,  "JAMES STOREY, DAVID DEMARET",0,2+8+16);
 					gametext(c,40+9+9+9+9+9+9+9+9+9+9+9,"DOUGLAS R WOOD",0,2+8+16);
 					break;
-				case 993:
+				case 994:
 					gametext(c,40,                      "SOUND ENGINE",0,2+8+16);
 					gametext(c,40+9,                    "JIM DOSE",0,2+8+16);
 						
@@ -2001,7 +2009,7 @@ void menus(void)
 					gametext(c,40+9+9+9+9+9+9+9+9,      "LANI MINELLA - VOICE PRODUCER",0,2+8+16);
 					gametext(c,40+9+9+9+9+9+9+9+9+9,    "JON ST. JOHN AS \"DUKE NUKEM\"",0,2+8+16);
 					break;
-				case 994:
+				case 995:
 					gametext(c,60,                      "GRAPHIC DESIGN",0,2+8+16);
 					gametext(c,60+9,                    "PACKAGING, MANUAL, ADS",0,2+8+16);
 					gametext(c,60+9+9,                  "ROBERT M. ATKINS",0,2+8+16);
@@ -2013,7 +2021,7 @@ void menus(void)
 					gametext(c,60+9+9+9+9+9+9+9+9,      "TERRY NAGY, COLLEEN COMPTON",0,2+8+16);
 					gametext(c,60+9+9+9+9+9+9+9+9+9,    "HASH INC., FORMGEN, INC.",0,2+8+16);
 					break;
-				case 995:
+				case 996:
 					gametext(c,49,                      "THE 3D REALMS BETA TESTERS",0,2+8+16);
 
 					gametext(c,49+9+9,                  "NATHAN ANDERSON, WAYNE BENNER",0,2+8+16);
@@ -2025,7 +2033,7 @@ void menus(void)
 					gametext(c,49+9+9+9+9+9+9+9+9,      "MIKE DUNCAN, DOUG HOWELL",0,2+8+16);
 					gametext(c,49+9+9+9+9+9+9+9+9+9,    "BILL BLAIR",0,2+8+16);
 					break;
-				case 996:
+				case 997:
 					gametext(c,32,                      "COMPANY PRODUCT SUPPORT",0,2+8+16);
 
 					gametext(c,32+9+9,                  "THE FOLLOWING COMPANIES WERE COOL",0,2+8+16);
@@ -2041,7 +2049,7 @@ void menus(void)
 
 					gametext(c,32+9+9+9+9+9+9+9+9+9+9+9+9+9,"THANKS FOR THE HARDWARE, GUYS.",0,2+8+16);
 					break;
-				case 997:
+				case 998:
 					gametext(c,50,                      "DUKE NUKEM IS A TRADEMARK OF",0,2+8+16);
 					gametext(c,50+9,                    "3D REALMS ENTERTAINMENT",0,2+8+16);
 						
@@ -2058,16 +2066,15 @@ void menus(void)
 			}
 			}
 
-            switch(current_menu)
+            if (!PLUTOPAK)
             {
-                case 990:
-                case 991:
-                case 992:
-                   rotatesprite(160<<16,200<<15,65536L,0,2504+current_menu-990,0,0,10+64,0,0,xdim-1,ydim-1);
-
-                   break;
-
+                /* Keep the original background art paired with its original
+                   credits pages after inserting the new 13Duke credits page. */
+                if (current_menu >= 991 && current_menu <= 993)
+                    rotatesprite(160<<16,200<<15,65536L,0,2504+current_menu-991,0,0,10+64,0,0,xdim-1,ydim-1);
             }
+            else if (current_menu >= 990 && current_menu <= 992)
+                rotatesprite(160<<16,200<<15,65536L,0,2504+current_menu-990,0,0,10+64,0,0,xdim-1,ydim-1);
             break;
 
         case 0: // main menu

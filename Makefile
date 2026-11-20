@@ -10,8 +10,10 @@ CXX     = $(CROSS_COMPILE)g++
 AR      = ar
 RANLIB  = ranlib
 PKG_CONFIG ?= pkg-config
+WINDRES ?= windres
 
 BUILD_DIR = build-mingw32
+RESOURCE_OBJ = $(BUILD_DIR)/13duke_icon.o
 TARGET    = bin/13duke.exe
 ENGINE_LIB = $(BUILD_DIR)/libengine.a
 
@@ -144,6 +146,11 @@ $(BUILD_DIR): check-toolchain
 bin:
 	mkdir -p "$@"
 
+# Embed the application icon into the Windows executable. Keep 13duke.ico
+# beside this Makefile and 13duke.rc in the project root.
+$(RESOURCE_OBJ): 13duke.rc 13duke.ico | $(BUILD_DIR)
+	$(WINDRES) -F pe-i386 -O coff -i "$<" -o "$@"
+
 # Generate one rule per source so nested source paths can be flattened into the
 # single object directory (also works with mingw32-make on Windows).
 define COMPILE_ENGINE_C
@@ -174,18 +181,20 @@ $(ENGINE_LIB): $(ENGINE_OBJS) | $(BUILD_DIR)
 	$(AR) rcs "$@" $^
 	$(RANLIB) "$@"
 
-$(TARGET): $(GAME_OBJS) $(ENGINE_LIB) | bin
-	$(CXX) $(LDFLAGS) -o "$@" $(GAME_OBJS) $(ENGINE_LIB) $(SDL_MIXER_LIBS) $(SDL_LIBS) -lwinmm -lws2_32 -ldxguid
+$(TARGET): $(GAME_OBJS) $(ENGINE_LIB) $(RESOURCE_OBJ) | bin
+	$(CXX) $(LDFLAGS) -o "$@" $(GAME_OBJS) $(ENGINE_LIB) $(RESOURCE_OBJ) $(SDL_MIXER_LIBS) $(SDL_LIBS) -lwinmm -lws2_32 -ldxguid
 
 check-toolchain:
 	@echo "CC target: $$($(CC) -dumpmachine)"
 	@echo "CXX target: $$($(CXX) -dumpmachine)"
 	@echo "AR: $(AR)"
 	@echo "RANLIB: $(RANLIB)"
+	@echo "WINDRES: $(WINDRES)"
 	@$(CC) -dumpmachine | grep -Eq '^(i[3-6]86)-.*(mingw|windows)' || { echo "ERROR: CC must target 32-bit MinGW/Windows."; exit 1; }
 	@$(CXX) -dumpmachine | grep -Eq '^(i[3-6]86)-.*(mingw|windows)' || { echo "ERROR: CXX must target 32-bit MinGW/Windows."; exit 1; }
 	@command -v "$(AR)" >/dev/null 2>&1 || { echo "ERROR: GNU archiver '$(AR)' not found. In MSYS2 MINGW32 run: pacman -S mingw-w64-i686-binutils"; exit 1; }
 	@command -v "$(RANLIB)" >/dev/null 2>&1 || { echo "ERROR: GNU ranlib '$(RANLIB)' not found. In MSYS2 MINGW32 run: pacman -S mingw-w64-i686-binutils"; exit 1; }
+	@command -v "$(WINDRES)" >/dev/null 2>&1 || { echo "ERROR: Windows resource compiler '$(WINDRES)' not found. Install the MinGW binutils package or set WINDRES explicitly."; exit 1; }
 
 print-config:
 	@echo CC=$(CC)

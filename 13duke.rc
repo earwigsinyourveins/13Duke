@@ -1,0 +1,4 @@
+/* 13Duke application icon resource.
+   Place 13duke.ico beside this file in the project root. */
+#define IDI_ICON1 101
+IDI_ICON1 ICON "13duke.ico"

@@ -81,9 +81,7 @@ Game/src/duke3d.h: TICRATE=120, TICSPERFRAME=4 fixed under DUKE13D.
 - displayweapon/menu/sound/config code deliberately untouched (render/UI).
 
 ## ROUND 5 (merged onto the user's 13Duke-1.1 tree: timer/tic counter + demo playback controls kept as-is)
-- global.c FindDistance2D: added the two 1.3D zero-axis returns (iy==0 -> ix, ix==0 -> iy), as in MACT mathutil.c.
-  Without them axis-aligned distances came out ~4% short (affects ldist, targeting, radius checks).
-  FindDistance3D already matched 1.3D.
+- global.c FindDistance2D: added the two 1.3D zero-axis returns (iy==0 -> ix, ix==0 -> iy), as in MACT mathutil.c. Without them axis-aligned distances came out ~4% short (affects ldist, targeting, radius checks). FindDistance3D already matched 1.3D. Thanks to HellFire aka reu for pointers.
 - game.c vglass(): 3 TRAND per glass piece in the order xvel, ang, tile (GAME.S vglass_), no z jitter.
   (xDuke drew a 4th TRAND per piece -> RNG diverged at every window shatter.)
 - game.c domovethings: xDuke "multiflag" save/load block (input bit 17) disabled under DUKE13D.
@@ -91,3 +89,21 @@ Game/src/duke3d.h: TICRATE=120, TICSPERFRAME=4 fixed under DUKE13D.
   fault = drawrooms+0xd91, POV player cursectnum == -1 (squished out of the map by a door).
 - engine.c drawrooms(): when the view sector is invalid (-1) render from the last valid sector instead of
   indexing sector[-1] (DOS read harmless garbage there; on Windows the garbage wallptr faults).  Render-only.
+
+## ROUND 6
+- CRASH ROOT CAUSE (door squish, POV player 1, ~15 s into the Hollywood demo): engine.c cansee() faulted on
+  `sub edx,[ecx+_wall]` = wall[wal->point2].x, with ecx=0xA9B40 -> address 0x70B460 exactly = the reported fault
+  address.  cansee() was called with the POV player's cursectnum == -1 (player squished out of the map); DOS reads
+  harmless garbage from sector[-1], here the garbage wall index is far outside wall[].
+  (Identified by locating the code shift between the supplied exe and the crashing build via call-site alignment of the
+  logged return addresses, then disassembling the fault instruction.  The r5 drawrooms() guard was a wrong lead; it is
+  harmless render-only code and was left in.)
+- engine.c cansee(): returns 0 when either sector is not a valid sector index.
+- Crash logger now also writes: the faulting function name (read from the exe's own COFF symbol table), a function
+  name for every stack return-address candidate, and the raw code bytes around the fault.  Needs an exe that still
+  has its symbols (do not strip).
+- Desync at ~13:40 (tic ~24600): NOT yet explained.  Observation from the demo input stream: the only rare input in
+  that window is P1 pressing "use inventory" (bit 30) together with weapon-3 select and jump (0x40000301) at tic 24608
+  (= 13:40.3).  P0 holds bits 16/24/29 (medkit/holo/open) continuously for long stretches.
+  Suggested experiment: play the demo with POV = player 1 the whole time (the crash is fixed now) to rule out the
+  POV switch as a cause.

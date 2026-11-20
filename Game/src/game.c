@@ -9830,6 +9830,56 @@ static int load_duke3d_groupfile(void)
 /* Writes 13duke_crash.txt when the process dies from an unhandled exception.
    Resolve the "rva" values with:  addr2line -f -e <exe> 0x<rva+0x400000>
    (build without -s / with -g so the exe keeps its symbols). */
+/* Resolve an RVA to "symbol+offset" by reading the COFF symbol table of a PE32 file on disk. */
+static unsigned long duke13d_rd32(const unsigned char *p){ return p[0]|((unsigned long)p[1]<<8)|((unsigned long)p[2]<<16)|((unsigned long)p[3]<<24); }
+static unsigned long duke13d_rd16(const unsigned char *p){ return p[0]|((unsigned long)p[1]<<8); }
+static int Duke13D_SymLookup(const char *exe, unsigned long rva, char *out, int outsz)
+{
+    FILE *f = fopen(exe,"rb");
+    unsigned char b[64], sym[18], best[18];
+    unsigned long peoff, symptr, nsym, nsec, optsz, i, k, strsz, bestrva = 0, bestd = 0xFFFFFFFFUL, srva, val;
+    unsigned long secva[96];
+    int havebest = 0, sec;
+    out[0] = 0;
+    if (!f) return 0;
+    if (fseek(f,0x3C,SEEK_SET) || fread(b,1,4,f) != 4) goto fail;
+    peoff = duke13d_rd32(b);
+    if (fseek(f,(long)peoff,SEEK_SET) || fread(b,1,24,f) != 24) goto fail;
+    nsec = duke13d_rd16(b+6); symptr = duke13d_rd32(b+12); nsym = duke13d_rd32(b+16); optsz = duke13d_rd16(b+20);
+    if (!symptr || !nsym || nsec > 96) goto fail;
+    for (i = 0; i < nsec; i++)
+    {
+        if (fseek(f,(long)(peoff+24+optsz+i*40),SEEK_SET) || fread(b,1,40,f) != 40) goto fail;
+        secva[i] = duke13d_rd32(b+12);
+    }
+    if (fseek(f,(long)(symptr+nsym*18),SEEK_SET) || fread(b,1,4,f) != 4) goto fail;
+    strsz = duke13d_rd32(b);
+    if (fseek(f,(long)symptr,SEEK_SET)) goto fail;
+    for (i = 0; i < nsym; i++)
+    {
+        if (fread(sym,1,18,f) != 18) break;
+        sec = (short)duke13d_rd16(sym+12);
+        if (sec > 0 && (unsigned long)sec <= nsec && (sym[16] == 2 || sym[16] == 3) && sym[0] != '.')
+        {
+            val = duke13d_rd32(sym+8); srva = secva[sec-1] + val;
+            if (srva <= rva && rva-srva < bestd) { bestd = rva-srva; bestrva = srva; memcpy(best,sym,18); havebest = 1; }
+        }
+        for (k = 0; k < sym[17]; k++) { unsigned char aux[18]; if (fread(aux,1,18,f) != 18) break; i++; }
+    }
+    if (!havebest) goto fail;
+    if (duke13d_rd32(best) == 0)
+    {
+        unsigned long off = duke13d_rd32(best+4); char nm[96]; size_t n;
+        if (off >= strsz || fseek(f,(long)(symptr+nsym*18+off),SEEK_SET)) goto fail;
+        n = fread(nm,1,sizeof(nm)-1,f); nm[n] = 0;
+        sprintf(out,"%.80s+0x%lX",nm,rva-bestrva);
+    }
+    else { char nm[9]; memcpy(nm,best,8); nm[8] = 0; sprintf(out,"%s+0x%lX",nm,rva-bestrva); }
+    fclose(f); return 1;
+fail:
+    fclose(f); return 0;
+}
+
 static LONG WINAPI Duke13D_CrashFilter(EXCEPTION_POINTERS *ep)
 {
     FILE *f = fopen("13duke_crash.txt","w");
@@ -9837,13 +9887,27 @@ static LONG WINAPI Duke13D_CrashFilter(EXCEPTION_POINTERS *ep)
     EXCEPTION_RECORD *r = ep->ExceptionRecord;
     DWORD base = (DWORD)GetModuleHandle(NULL), size = 0, *sp, n;
     IMAGE_DOS_HEADER *dh = (IMAGE_DOS_HEADER *)base;
+    char exepath[260], symname[160];
     if (f == NULL) f = stderr;
     if (dh->e_magic == IMAGE_DOS_SIGNATURE)
         size = ((IMAGE_NT_HEADERS *)(base+dh->e_lfanew))->OptionalHeader.SizeOfImage;
+    GetModuleFileNameA(NULL,exepath,sizeof(exepath));
     fprintf(f,"13Duke crash report\n");
     fprintf(f,"exception=%08lX  address=%08lX  module_base=%08lX  rva=%08lX\n",
             (unsigned long)r->ExceptionCode,(unsigned long)r->ExceptionAddress,(unsigned long)base,
             (unsigned long)((DWORD)r->ExceptionAddress-base));
+    if (Duke13D_SymLookup(exepath,(unsigned long)((DWORD)r->ExceptionAddress-base),symname,sizeof(symname)))
+        fprintf(f,"fault in function: %s\n",symname);
+    {
+        const unsigned char *eip = (const unsigned char *)r->ExceptionAddress;
+        int q;
+        if (!IsBadReadPtr(eip-32,64))
+        {
+            fprintf(f,"code bytes (32 before .. 32 after the fault, fault byte marked <>):\n");
+            for (q = -32; q < 32; q++) fprintf(f,q==0?"<%02X>":"%02X ",eip[q]);
+            fprintf(f,"\n");
+        }
+    }
     if (r->ExceptionCode == EXCEPTION_ACCESS_VIOLATION && r->NumberParameters >= 2)
         fprintf(f,"access violation: %s address %08lX\n",r->ExceptionInformation[0]?"writing":"reading",
                 (unsigned long)r->ExceptionInformation[1]);
@@ -9862,7 +9926,11 @@ static LONG WINAPI Duke13D_CrashFilter(EXCEPTION_POINTERS *ep)
     sp = (DWORD *)c->Esp;
     if (!IsBadReadPtr(sp,256*sizeof(DWORD)))
         for (n = 0; n < 256; n++)
-            if (sp[n] >= base && sp[n] < base+size) fprintf(f,"  [esp+%03lX] rva=%08lX\n",(unsigned long)(n*4),(unsigned long)(sp[n]-base));
+            if (sp[n] >= base && sp[n] < base+size)
+            {
+                if (!Duke13D_SymLookup(exepath,(unsigned long)(sp[n]-base),symname,sizeof(symname))) symname[0] = 0;
+                fprintf(f,"  [esp+%03lX] rva=%08lX  %s\n",(unsigned long)(n*4),(unsigned long)(sp[n]-base),symname);
+            }
     if (f != stderr) fclose(f);
     fprintf(stderr,"13Duke crashed; details written to 13duke_crash.txt\n");
     return EXCEPTION_EXECUTE_HANDLER;
