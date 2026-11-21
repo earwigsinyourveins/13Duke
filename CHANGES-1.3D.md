@@ -107,3 +107,20 @@ Game/src/duke3d.h: TICRATE=120, TICSPERFRAME=4 fixed under DUKE13D.
   (= 13:40.3).  P0 holds bits 16/24/29 (medkit/holo/open) continuously for long stretches.
   Suggested experiment: play the demo with POV = player 1 the whole time (the crash is fixed now) to rule out the
   POV switch as a cause.
+
+## ROUND 7 (merged onto the user's 13Duke-1.3 tree: icon/resource build + menues.c changes kept)
+- game.c displayrest(): automap "visited sectors" update is skipped when the POV player's cursectnum is invalid.
+  Second crash of the door-squish sequence (after cansee): sector[-1] garbage wallnum led to sector[27325].lotag.
+  Found from the improved crash log: "fault in function: _displayrest+0xAA" and the decoded code bytes
+  (cmp word [esi+0x22],0x7FFF = sector[i].lotag == 32767).
+- NEW diagnostic simulation trace (game.c Duke13D_Trace): create an empty file 13duke_trace.on next to the exe,
+  run a demo, and 13duke_trace.csv is written, one line per simulation tic BEFORE it is simulated:
+    tic, time(s), randomseed, hash_sprites, hash_sectors, hash_walls,
+    then for every player: avel, horz, fvel, svel, bits(hex), x, y, z, ang, sector, health, weapon, zvel
+  Use: compare two builds' traces with a diff tool -> the first differing line is the first diverging tic, and the hash
+  columns say whether sprites, sectors or walls diverged first.  A new "# new demo" comment line marks each demo start.
+- Verified: gcc (-m32 -O2) evaluates the random draws inside EGS(...) argument lists right-to-left, the same as Watcom
+  (checked against ACTORS.S guts_ and GAME.S vglass_), so those statements agree between the two compilers.
+- Verified: the 1.3D simulation code does not read the wall clock (totalclock); demo playback pace cannot change results.
+- HFIOD2 (E1L8) demo notes: input stream freezes (identical input for ~60 tics) at tics 2817-2873 = DOS recording stalled
+  for ~2 s at ~94-96 s; desync is reported shortly before the first pause at tic 3007 (100.2 s).

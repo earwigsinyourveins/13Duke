@@ -2776,6 +2776,28 @@ void displayrest(long smoothratio)
         return;
     }
 
+// 1.3d: displayrest: no automap update from an invalid (-1) sector
+#if DUKE13D
+    i = pp->cursectnum;
+
+    /* A player squished out of the map has cursectnum -1.  DOS marks garbage map bits and carries on;
+       here the garbage wall list indexes sector[] out of range and faults.  Skip the automap bookkeeping. */
+    if (i >= 0 && i < numsectors)
+    {
+        show2dsector[i>>3] |= (1<<(i&7));
+        wal = &wall[sector[i].wallptr];
+        for(j=sector[i].wallnum;j>0;j--,wal++)
+        {
+            i = wal->nextsector;
+            if (i < 0) continue;
+            if (wal->cstat&0x0071) continue;
+            if (wall[wal->nextwall].cstat&0x0071) continue;
+            if (sector[i].lotag == 32767) continue;
+            if (sector[i].ceilingz >= sector[i].floorz) continue;
+            show2dsector[i>>3] |= (1<<(i&7));
+        }
+    }
+#else
     i = pp->cursectnum;
 
     show2dsector[i>>3] |= (1<<(i&7));
@@ -2790,7 +2812,7 @@ void displayrest(long smoothratio)
         if (sector[i].ceilingz >= sector[i].floorz) continue;
         show2dsector[i>>3] |= (1<<(i&7));
     }
-
+#endif // DUKE13D
     if(ud.camerasprite == -1)
     {
         if( ud.overhead_on != 2 )
@@ -10500,8 +10522,15 @@ int main(int argc,char **argv)
 	return(0);
 }
 
+#if DUKE13D
+static void Duke13D_TraceReset(void);
+#endif
+
 char opendemoread(char which_demo) // 0 = mine
 {
+#if DUKE13D
+    Duke13D_TraceReset();
+#endif
     char d[] = "demo_.dmo";
     char *fname = d;
     char ver;
@@ -10651,6 +10680,9 @@ char opendemoread(char which_demo) // 0 = mine
 
 void opendemowrite(void)
 {
+#if DUKE13D
+    Duke13D_TraceReset();
+#endif
     char d[] = "demo1.dmo";
     long dummylong = 0;
     char ver;
@@ -11665,10 +11697,86 @@ ENDFAKEPROCESSINPUT:
 }
 
 
+#if DUKE13D
+/* ---- Diagnostic simulation trace --------------------------------------------------------------
+   Enabled by creating an (empty) file named 13duke_trace.on in the current directory.
+   Writes 13duke_trace.csv: one line per simulation tic, taken BEFORE that tic is simulated.
+   Columns: tic,time,seed,hash_sprites,hash_sectors,hash_walls, then per player:
+            avel,horz,fvel,svel,bits(hex),x,y,z,ang,sect,health,weapon,zvel
+   Two traces of the same demo can be compared with any diff tool: the first differing line is the
+   first tic whose state diverged (and the hash columns say whether sprites, sectors or walls did). */
+static FILE *g_trace = NULL;
+static int g_trace_enabled = -1;
+static long g_trace_tic = 0;
+
+static unsigned long Duke13D_Mix(unsigned long h, unsigned long v) { return (h ^ v) * 16777619UL; }
+
+static void Duke13D_TraceReset(void)
+{
+    g_trace_tic = 0;
+    if (g_trace) { fprintf(g_trace,"# new demo/recording: volume %d level %d skill %d players %d\n",
+                           (int)ud.volume_number,(int)ud.level_number,(int)ud.player_skill,(int)ud.multimode);
+                   fflush(g_trace); }
+}
+
+static void Duke13D_Trace(void)
+{
+    unsigned long hs = 2166136261UL, hc = 2166136261UL, hw = 2166136261UL;
+    int i, p;
+    if (g_trace_enabled < 0)
+    {
+        FILE *on = fopen("13duke_trace.on","rb");
+        g_trace_enabled = (on != NULL);
+        if (on) fclose(on);
+        if (g_trace_enabled)
+        {
+            g_trace = fopen("13duke_trace.csv","w");
+            if (g_trace == NULL) g_trace_enabled = 0;
+            else Duke13D_TraceReset();
+        }
+    }
+    if (!g_trace_enabled) return;
+
+    for (i = 0; i < MAXSPRITES; i++)
+        if (sprite[i].statnum < MAXSTATUS)
+        {
+            hs = Duke13D_Mix(hs,(unsigned long)sprite[i].x);   hs = Duke13D_Mix(hs,(unsigned long)sprite[i].y);
+            hs = Duke13D_Mix(hs,(unsigned long)sprite[i].z);   hs = Duke13D_Mix(hs,(unsigned long)sprite[i].ang);
+            hs = Duke13D_Mix(hs,(unsigned long)sprite[i].picnum); hs = Duke13D_Mix(hs,(unsigned long)sprite[i].sectnum);
+            hs = Duke13D_Mix(hs,(unsigned long)sprite[i].xvel); hs = Duke13D_Mix(hs,(unsigned long)sprite[i].zvel);
+            hs = Duke13D_Mix(hs,(unsigned long)sprite[i].extra);
+        }
+    for (i = 0; i < numsectors; i++)
+    {
+        hc = Duke13D_Mix(hc,(unsigned long)sector[i].ceilingz); hc = Duke13D_Mix(hc,(unsigned long)sector[i].floorz);
+        hc = Duke13D_Mix(hc,(unsigned long)sector[i].lotag);    hc = Duke13D_Mix(hc,(unsigned long)sector[i].hitag);
+    }
+    for (i = 0; i < numwalls; i++)
+    {
+        hw = Duke13D_Mix(hw,(unsigned long)wall[i].x); hw = Duke13D_Mix(hw,(unsigned long)wall[i].y);
+    }
+
+    fprintf(g_trace,"%ld,%.2f,%08lX,%08lX,%08lX,%08lX",g_trace_tic,(double)g_trace_tic/30.0,
+            (unsigned long)randomseed,hs,hc,hw);
+    for (p = connecthead; p >= 0; p = connectpoint2[p])
+        fprintf(g_trace,",%d,%d,%d,%d,%08lX,%ld,%ld,%ld,%d,%d,%d,%d,%ld",
+                (int)sync[p].avel,(int)sync[p].horz,(int)sync[p].fvel,(int)sync[p].svel,(unsigned long)sync[p].bits,
+                (long)ps[p].posx,(long)ps[p].posy,(long)ps[p].posz,(int)ps[p].ang,(int)ps[p].cursectnum,
+                (int)sprite[ps[p].i].extra,(int)ps[p].curr_weapon,(long)ps[p].poszv);
+    fprintf(g_trace,"\n");
+    fflush(g_trace);
+    g_trace_tic++;
+}
+#endif
+
 char domovethings(void)
 {
     short i, j;
     char ch;
+
+#if DUKE13D
+    Duke13D_Trace();
+#endif
 
 #ifdef DBGRECORD
 	FILE *pFile;
