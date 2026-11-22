@@ -80,6 +80,9 @@ void incur_damage( struct player_struct *p )
     }
 }
 
+#if DUKE13D
+#undef quickkill
+#endif
 void quickkill(struct player_struct *p)
 {
     p->pals[0] = 48;
@@ -92,6 +95,19 @@ void quickkill(struct player_struct *p)
     if(ud.god == 0) guts(&sprite[p->i],JIBS6,8,myconnectindex);
     return;
 }
+
+#if DUKE13D
+void Duke13D_QuickKillTraced(struct player_struct *p, const char *file, int line)
+{
+    const char *f = file, *q;
+    for (q = file; *q; q++) if (*q == '/' || *q == '\\') f = q+1;
+    Duke13D_TraceEvent("QUICKKILL player=%d at %s:%d sect=%d pos=%ld,%ld,%ld zvel=%ld hp=%d falling=%d on_ground=%d",
+        (int)(p-ps),f,line,(int)p->cursectnum,(long)p->posx,(long)p->posy,(long)p->posz,(long)p->poszv,
+        (int)sprite[p->i].extra,(int)p->falling_counter,(int)p->on_ground);
+    quickkill(p);
+}
+#define quickkill(p) Duke13D_QuickKillTraced((p),__FILE__,__LINE__)
+#endif
 
 void forceplayerangle(struct player_struct *p)
 {
@@ -2638,7 +2654,7 @@ void getinput(short snum)
 	 }
 
 	// FIX_00039: Toggle autoaim between Normal (full) and partial (on bullet weapons only)
-	if( ACTION(gamefunc_Auto_Aim) && nHostForceDisableAutoaim == 0)
+if( !DUKE13D && ACTION(gamefunc_Auto_Aim) && nHostForceDisableAutoaim == 0)
 	{
 		ud.auto_aim++;
 		ud.auto_aim = ((ud.auto_aim-1)%2)+1;

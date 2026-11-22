@@ -57,8 +57,11 @@ endif
 # -funsigned-char matches Visual C++'s DefaultCharIsUnsigned=true;
 # -fwrapv and -fno-strict-aliasing avoid aggressive assumptions in legacy code;
 # -fcommon supports the old common-symbol style used by some original sources.
-COMMON_CFLAGS   = -O2 -funsigned-char -fwrapv -fno-strict-aliasing -fcommon
-COMMON_CXXFLAGS = -O2 -funsigned-char -fwrapv -fno-strict-aliasing -fcommon
+# OPT selects the optimisation level.  "make clean" first, then e.g.  make OPT="-O0 -g"  to test whether a
+# demo desync depends on compiler optimisation.  -funsigned-char and -fwrapv must stay (Watcom semantics).
+OPT ?= -O2
+COMMON_CFLAGS   = $(OPT) -funsigned-char -fwrapv -fno-strict-aliasing -fcommon
+COMMON_CXXFLAGS = $(OPT) -funsigned-char -fwrapv -fno-strict-aliasing -fcommon
 CFLAGS   ?= $(COMMON_CFLAGS) -std=gnu89
 CXXFLAGS ?= $(COMMON_CXXFLAGS) -std=gnu++98 -fpermissive
 LDFLAGS  ?=

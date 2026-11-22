@@ -189,6 +189,12 @@ extern void setpal(struct player_struct *p);
 extern void incur_damage(struct player_struct *p);
 //#line "player.c" 59
 extern void quickkill(struct player_struct *p);
+#if DUKE13D
+/* every quickkill() call is traced (13duke_trace.csv) with the source line that killed the player */
+extern void Duke13D_QuickKillTraced(struct player_struct *p, const char *file, int line);
+extern void Duke13D_TraceEvent(const char *fmt, ...);
+#define quickkill(p) Duke13D_QuickKillTraced((p),__FILE__,__LINE__)
+#endif
 //#line "player.c" 73
 extern void forceplayerangle(struct player_struct *p);
 //#line "player.c" 85

@@ -419,6 +419,7 @@ void pickrandomspot(short snum)
     p->oposz = p->posz = po[i].oz;
     p->ang = po[i].oa;
     p->cursectnum = po[i].os;
+    Duke13D_TraceEvent("RESPAWN player=%d spot=%d of %d  pos=%ld,%ld,%ld sect=%d  seed_after=%08lX",(int)snum,(int)i,(int)numplayersprites,(long)p->posx,(long)p->posy,(long)p->posz,(int)p->cursectnum,(unsigned long)randomseed);
 }
 #else
 void pickrandomspot(short snum)

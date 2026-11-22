@@ -8890,7 +8890,7 @@ void checkcommandline(int argc,char **argv)
                 continue;
             }
 
-            if (stricmp(c, "/disableautoaim") == 0)
+if (!DUKE13D && stricmp(c, "/disableautoaim") == 0)
             {
 
 				printf(	"\nThe Host used the /disableautoaim option to turn your Weapon AutoAim OFF\n"
@@ -10005,8 +10005,8 @@ int main(int argc,char **argv)
     {
         Error(EXIT_SUCCESS, "Could not initialize any original BASE duke3d*.grp file\n"
 							"Even if you are playing a custom GRP you still need\n"
-							"an original base GRP file as Shareware/Full 1.3D GRP or\n"
-							"the v1.5 ATOMIC GRP file. Such a file seems to be missing\n"
+							"an original base GRP file as Shareware/Full 1.3D GRP.\n"
+							"Such a file seems to be missing\n"
 							"or is corrupted\n");
     }
 
@@ -10057,11 +10057,28 @@ int main(int argc,char **argv)
 		grpVersion = DUKEITOUTINDC_GRP;
 	}
 
+#if DUKE13D
+	/* This build only supports Duke Nukem 3D v1.3D.  Refuse v1.4 (Plutonium) / v1.5 (Atomic) base GRPs and the DC pack. */
+	if (grpVersion == ATOMIC_GRP14_15 || grpVersion == DUKEITOUTINDC_GRP ||
+		groupefil_crc32[0]==CRC_BASE_GRP_PLUTONIUM_14 || groupefil_crc32[0]==CRC_BASE_GRP_ATOMIC_15)
+	{
+		Error(EXIT_SUCCESS,	"This is a Duke Nukem 3D v1.3D-only build.\n"
+							"The base GRP found belongs to v1.4 (Plutonium) or v1.5 (Atomic Edition)\n"
+							"and is not supported. Please use the Shareware or Full v1.3D duke3d.grp.\n");
+	}
+#endif
+
 	// FIX_00062: Better support and identification for GRP and CON files for 1.3/1.3d/1.4/1.5
+// 1.3d: only 1.3D GRPs are identified
+#if DUKE13D
+if ( groupefil_crc32[0]==CRC_BASE_GRP_SHAREWARE_13 ||
+				groupefil_crc32[0]==CRC_BASE_GRP_FULL_13 )
+#else
 	if (	groupefil_crc32[0]==CRC_BASE_GRP_SHAREWARE_13 ||
 				groupefil_crc32[0]==CRC_BASE_GRP_FULL_13 ||
 				groupefil_crc32[0]==CRC_BASE_GRP_PLUTONIUM_14 ||
 				groupefil_crc32[0]==CRC_BASE_GRP_ATOMIC_15 )
+#endif // DUKE13D
 	{
 		printf("GRP identified as: %s\n", grpVersion2char_from_crc(groupefil_crc32[0]));
 	}
@@ -11697,6 +11714,7 @@ ENDFAKEPROCESSINPUT:
 }
 
 
+#include <stdarg.h>
 #if DUKE13D
 /* ---- Diagnostic simulation trace --------------------------------------------------------------
    Enabled by creating an (empty) file named 13duke_trace.on in the current directory.
@@ -11766,6 +11784,18 @@ static void Duke13D_Trace(void)
     fprintf(g_trace,"\n");
     fflush(g_trace);
     g_trace_tic++;
+}
+
+void Duke13D_TraceEvent(const char *fmt, ...)
+{
+    va_list ap;
+    if (g_trace_enabled <= 0 || g_trace == NULL) return;
+    fprintf(g_trace,"# EVENT tic=%ld ",g_trace_tic-1);
+    va_start(ap,fmt);
+    vfprintf(g_trace,fmt,ap);
+    va_end(ap);
+    fprintf(g_trace,"\n");
+    fflush(g_trace);
 }
 #endif
 

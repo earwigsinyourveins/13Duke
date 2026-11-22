@@ -780,9 +780,14 @@ void CONFIG_ReadSetup( void )
    SCRIPT_GetNumber( scripthandle, "Misc", "WeaponAutoSwitch",&ud.weaponautoswitch);
    SCRIPT_GetNumber( scripthandle, "Misc", "HideWeapon",&ud.hideweapon);
    SCRIPT_GetNumber( scripthandle, "Misc", "ShowWeapon",&ud.showweapons);
+// 1.3d: autoaim is not configurable
+#if DUKE13D
+   ud.auto_aim = 2; /* 1.3D has no autoaim setting: always full autoaim */
+#else
    SCRIPT_GetNumber( scripthandle, "Misc", "AutoAim",&ud.auto_aim);
 	if(ud.auto_aim!=1 && ud.auto_aim != 2)
 		ud.auto_aim = 2; // avoid people missing with the cfg to go in a deadlock
+#endif // DUKE13D
    SCRIPT_GetNumber( scripthandle, "Misc", "GitDatMdk",&ud.gitdat_mdk);
    
    if(ud.mywchoice[0] == 0 && ud.mywchoice[1] == 0)
@@ -944,8 +949,13 @@ void CONFIG_WriteSetup( void )
    SCRIPT_PutNumber( scripthandle, "Misc", "HideWeapon",ud.hideweapon,false,false);
    SCRIPT_PutNumber( scripthandle, "Misc", "ShowWeapon",ud.showweapons,false,false);
    SCRIPT_PutNumber( scripthandle, "Misc", "WeaponAutoSwitch",ud.weaponautoswitch,false,false);
+// 1.3d: autoaim is not saved
+#if DUKE13D
+   /* 1.3D: the autoaim setting is not saved */
+#else
    if( nHostForceDisableAutoaim == 0) // do not save Host request to have AutoAim Off.
 	   SCRIPT_PutNumber( scripthandle, "Misc", "AutoAim",ud.auto_aim,false,false);
+#endif // DUKE13D
    SCRIPT_PutNumber( scripthandle, "Controls", "MouseAimingFlipped",ud.mouseflip,false,false);
    SCRIPT_PutNumber( scripthandle, "Controls","MouseAiming",MouseAiming,false,false);
    SCRIPT_PutNumber( scripthandle, "Controls","GameMouseAiming",(int32) ps[myconnectindex].aim_mode,false,false);

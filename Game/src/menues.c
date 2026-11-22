@@ -2783,7 +2783,11 @@ else
 
             onbar = 0;
 
+#if DUKE13D
+			x = probe(c+6,43,16,6); // 1.3D has no autoaim option
+#else
 			x = probe(c+6,43,16,7);
+#endif // DUKE13D
 
             switch(x)
             {
@@ -2808,6 +2812,14 @@ else
 				case 4:
 					ud.weaponautoswitch = !ud.weaponautoswitch;
 					break;
+#if DUKE13D
+				case 5: // parental
+#ifndef AUSTRALIA
+					cmenu(10000);
+#endif
+					break;
+
+#else
 				case 5:
 					// FIX_00045: Autoaim mode can now be toggled on/off from menu
 					if( nHostForceDisableAutoaim == 0)
@@ -2822,6 +2834,7 @@ else
 #endif
                     break;
 
+#endif // DUKE13D
 			}
 
 
@@ -2849,6 +2862,8 @@ else
 			if(ud.weaponautoswitch) menutext(c+160+40,43+16*4,0,0,"OFF");
             else menutext(c+160+40,43+16*4,0,0,"ON");
 
+#if DUKE13D
+#else
 			switch(ud.auto_aim)
             {
                 case 0: menutext(c,43+16*5,0,nHostForceDisableAutoaim,"AUTOAIM DISABLED BY HOST"); 
@@ -2859,11 +2874,20 @@ else
 						break;
             }
 
+#endif // DUKE13D
+#if DUKE13D
+#ifndef AUSTRALIA
+            menutext(c,43+16*5,SHX(-9),PHX(-9),"PARENTAL LOCK");
+#else
+            menutext(c,43+16*5,SHX(-9),1,"PARENTAL LOCK");
+#endif
+#else
 #ifndef AUSTRALIA
             menutext(c,43+16*6,SHX(-9),PHX(-9),"PARENTAL LOCK");
 #else
             menutext(c,43+16*6,SHX(-9),1,"PARENTAL LOCK");
 #endif
+#endif // DUKE13D
 
 
 			break;

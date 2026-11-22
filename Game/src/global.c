@@ -36,6 +36,16 @@ char *mymembuf;
 char MusicPtr[72000];
 
 
+// 1.3d: only the Shareware and Full 1.3D GRPs are recognised
+#if DUKE13D
+crc32_t crc32lookup[] = {
+		// good (1.3D only):
+		{ CRC_BASE_GRP_SHAREWARE_13,	"SHAREWARE 1.3D", 11035779 },
+		{ CRC_BASE_GRP_FULL_13,			"FULL 1.3D     ", 26524524 },
+		// unknown:
+		{ 0,							"HACK/UNKNOWN  ", 0}
+	};
+#else
 crc32_t crc32lookup[] = {
 		// good:
 		{ CRC_BASE_GRP_SHAREWARE_13,	"SHAREWARE 1.3D", 11035779 },
@@ -45,7 +55,7 @@ crc32_t crc32lookup[] = {
 		// unknown:
 		{ 0,							"HACK/UNKNOWN  ", 0}
 	};
-
+#endif // DUKE13D
 unsigned char conVersion = 13;
 unsigned char grpVersion = 0;
 

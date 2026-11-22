@@ -124,3 +124,35 @@ Game/src/duke3d.h: TICRATE=120, TICSPERFRAME=4 fixed under DUKE13D.
 - Verified: the 1.3D simulation code does not read the wall clock (totalclock); demo playback pace cannot change results.
 - HFIOD2 (E1L8) demo notes: input stream freezes (identical input for ~60 tics) at tics 2817-2873 = DOS recording stalled
   for ~2 s at ~94-96 s; desync is reported shortly before the first pause at tic 3007 (100.2 s).
+
+## ROUND 8
+- Merged user's config.c (BFullScreen = 0).
+- Makefile: OPT variable (default -O2).  Test with:  make clean  &&  make OPT="-O0 -g"
+- quickkill() is now traced: the trace CSV gets "# EVENT tic=N QUICKKILL player=P at file:line sect pos zvel hp falling on_ground"
+  for every kill, so the exact killing code path of any death is recorded.
+- Analysis of the HFIOD2 trace (user-supplied, 0-86 s):
+  * ksqrt port verified numerically (0 mismatches vs an independent model of the original asm over 388,943 values).
+  * pushmove (byte-verified against the 1.3D exe by the recovered project) returns OK at P0's death position for
+    all eye heights -> pushmove is NOT what killed P0 at tic 1628.
+  * P0's death at 54.3 s (hp 80 -> 0 right after P1 fired a shotgun) looks legitimate: the human's recorded input
+    switches from steady running to erratic dead-player flailing, exactly like the uncontested death at 16.5 s.
+    So the simulation is believed in sync up to at least ~57 s; the desync lies later.
+  * No other anomaly found by input/behaviour analysis in 57-86 s (one 1.3 s stall at (8023,-11995) while the human
+    presses open/quick-kick, consistent with a door).
+
+## ROUND 9
+- GRP policy (1.3D only): only the Shareware 1.3D and Full 1.3D base GRPs are recognised (crc32lookup / MAX_KNOWN_GRP = 2).
+  A Plutonium 1.4 or Atomic 1.5 base GRP (or the 1.5 DC pack) is now a fatal error with an explanatory message.
+  Unknown/modified base GRPs still get the existing warn-and-confirm prompt.
+- Autoaim is not configurable any more (1.3D has no such option; aim() was already the unconditional 1.3D version):
+  options-menu item removed (menu re-indexed, Parental Lock moved up), config AutoAim not read/written (always 2),
+  in-game toggle key and /disableautoaim command-line switch disabled.  (The key still appears in the key-binding list
+  but does nothing.)
+- Trace: "# EVENT RESPAWN player=P spot=I of N pos=... seed_after=..." is logged for every spawn-spot choice.
+- HFIOD2 findings (traces 13duke_trace.csv / _1.csv, DOS kill counts 2/3 vs ours 1/2 at the pause):
+  * Same build, same demo, two playbacks (one with fast-forward + POV switching): seed, sectors, walls and all player
+    state identical for all 2592 shared tics; only one sprite's data differs from tic 1098.  Gameplay does not depend on
+    POV or playback speed.
+  * Our deaths: P1 at 9.9 s, P0 at 16.5 s and 54.3 s (P0 3rd respawn at tic 1735, spawn spot 2 of 8).
+    Aim alignment of both shooters is near-perfect until ~56 s and lost after P0's 3rd respawn -> the divergence is at or
+    just before that respawn (spawn spot = TRAND % numplayersprites, i.e. RNG-sequence dependent).

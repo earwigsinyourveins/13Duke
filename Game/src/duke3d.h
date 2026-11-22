@@ -87,7 +87,11 @@ extern long groupefil_crc32[MAXGROUPFILES];
 #define XDUKE_REV_DOT_Y	2   // rev is: vXDUKE_REV_X.XDUKE_REV_DOT_Y
 #define XDUKE_SUBVERSION 1
 
+#if DUKE13D
+#define MAX_KNOWN_GRP 2   /* shareware 1.3D + full 1.3D only */
+#else
 #define MAX_KNOWN_GRP 4
+#endif
 
 enum
 {
