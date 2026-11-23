@@ -156,3 +156,37 @@ Game/src/duke3d.h: TICRATE=120, TICSPERFRAME=4 fixed under DUKE13D.
   * Our deaths: P1 at 9.9 s, P0 at 16.5 s and 54.3 s (P0 3rd respawn at tic 1735, spawn spot 2 of 8).
     Aim alignment of both shooters is near-perfect until ~56 s and lost after P0's 3rd respawn -> the divergence is at or
     just before that respawn (spawn spot = TRAND % numplayersprites, i.e. RNG-sequence dependent).
+
+## ROUND 10
+- Options menu (1.3D build) now: SHADOWS, SCREEN TILTING, CINEMATICS, WEAPON MODEL, DEMO CAMERAS, PARENTAL LOCK.
+  "AUTOAIM" and "WEAPON SWITCH" are gone; config no longer reads/writes AutoAim or WeaponAutoSwitch
+  (neither is read by the 1.3D simulation).
+- DEMO CAMERAS option (menu + config Misc.DemoCameras, default ON = real 1.3D behaviour), changeable live during
+  playback (also the C key during demo playback).  Presentation only: the SE27 effector code, ud.camerasprite,
+  every sprite/hittype value, the RNG and the simulation are untouched; only the renderer's choice of view
+  (VIEWCAM() in displayrooms/HUD/sprite drawing) changes while ud.recstat == 2.
+  Why SE27 is safe: it only runs when myconnectindex == screenpeek, draws no random numbers, and writes only the
+  camera sprite's own fields (ang, t[0], tempang) and ud.camerasprite.
+- Trace: "# EVENT ... GLASS lotsofglass/spriteglass/ceilingglass/lotsofcolourglass owner picnum wall n x,y,z seed".
+- Verification method change: edits are now verified on the PREPROCESSED sources (gcc -E), which caught a half-applied
+  menu edit that the plain syntax check could not see.
+- Coop-view key: 1.3D allows cycling the view with ud.coop==1 || ud.recstat!=0 (so also while RECORDING a deathmatch);
+  xDuke restricts it to ud.coop==1 || ud.recstat==2.  Not restored: screenpeek only affects rendering, sound distance
+  and the SE27 camera sprite's own fields, never the RNG, players, sectors or walls.
+- HFIOD2 analysis (trace 199b05): 9 player-start sprites (TRAND % 9); respawn spots 1, 7, 6 at tics 331/518/1734;
+  per-tic RNG draw counts reconstructed from the logged seeds: steady 1-2/tic baseline, bursts that are multiples of 3
+  (glass: 3 draws per piece), notably 208 draws at 29.3 s and 312 at 34.9 s (P1 shotgun), chaingun shots at 45 -> 72
+  draws.  DOS puts P0's 3rd respawn in the south-west, ours in the north-east.
+
+## ROUND 11
+- Screenshot file names start with "13Duke(v..)" instead of "xDuke(v..)".
+- Trace: per player extra columns armor, ammo of the current weapon, frags, suicides (and a "# columns:" header line),
+  so DOS HUD readings (health/armor/ammo/kills) can be matched against exact tics.
+- Verified: the demo-camera key handler runs only inside the demo-playback loop; it cannot affect netplay, recording
+  or input bits.
+- HFIOD2 (trace 9766d4 + DOS screenshots): divergence is NOT at the 38-39 s jump; by 35 s DOS shows Player 1 with
+  health 66 / armor 84 / shotgun ammo 18 (hit by the other player), ours has 100 and the other player's shots at
+  32.6 s (chaingun) and 34.8 s (shotgun) are aimed 14 and 35 degrees away from our Player 1.  Positions matched at
+  ~29 s (same view, same RPG-ammo message).  => Player 1's position diverges between ~29 s and ~32.6 s.
+- The map uses tile numbers up to 4931 (e.g. 223 walls on tile 4152); real 1.3D has only 4096 tile slots and reads past
+  its arrays for those tiles, we have 9216 and show hall-of-mirrors.  Render only; not reproduced.

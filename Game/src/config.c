@@ -359,7 +359,13 @@ void CONFIG_SetDefaults( void )
    ud.weaponautoswitch = 0;
    ud.hideweapon = 0;
    ud.auto_aim = 2; // full by default
+// 1.3d: default for the demo-camera option
+#if DUKE13D
+ud.gitdat_mdk = 0;
+   g_demo_forced_cameras = 1; /* 1.3D behaviour: SE27 demo cameras are shown */
+#else
    ud.gitdat_mdk = 0;
+#endif // DUKE13D
    ud.playing_demo_rev = 0;
 
    // com
@@ -776,8 +782,20 @@ void CONFIG_ReadSetup( void )
    ud.executions++;
    SCRIPT_GetNumber( scripthandle, "Misc", "RunMode",&ud.auto_run);
    SCRIPT_GetNumber( scripthandle, "Misc", "Crosshairs",&ud.crosshair);
+// 1.3d: read demo-camera option
+#if DUKE13D
+SCRIPT_GetNumber( scripthandle, "Misc", "ShowCinematics",&ud.showcinematics);
+   SCRIPT_GetNumber( scripthandle, "Misc", "DemoCameras",&g_demo_forced_cameras);
+   g_demo_forced_cameras = (g_demo_forced_cameras != 0);
+#else
    SCRIPT_GetNumber( scripthandle, "Misc", "ShowCinematics",&ud.showcinematics);
+#endif // DUKE13D
+// 1.3d: weapon switch is not configurable
+#if DUKE13D
+   ud.weaponautoswitch = 1; /* 1.3D: no weapon-switch option; always on (not read by the 1.3D simulation) */
+#else
    SCRIPT_GetNumber( scripthandle, "Misc", "WeaponAutoSwitch",&ud.weaponautoswitch);
+#endif // DUKE13D
    SCRIPT_GetNumber( scripthandle, "Misc", "HideWeapon",&ud.hideweapon);
    SCRIPT_GetNumber( scripthandle, "Misc", "ShowWeapon",&ud.showweapons);
 // 1.3d: autoaim is not configurable
@@ -945,10 +963,21 @@ void CONFIG_WriteSetup( void )
    SCRIPT_PutNumber( scripthandle, "Misc", "Executions",ud.executions,false,false);
    SCRIPT_PutNumber( scripthandle, "Misc", "RunMode",ud.auto_run,false,false);
    SCRIPT_PutNumber( scripthandle, "Misc", "Crosshairs",ud.crosshair,false,false);
+// 1.3d: write demo-camera option
+#if DUKE13D
+SCRIPT_PutNumber( scripthandle, "Misc", "ShowCinematics",ud.showcinematics,false,false);
+   SCRIPT_PutNumber( scripthandle, "Misc", "DemoCameras",g_demo_forced_cameras,false,false);
+#else
    SCRIPT_PutNumber( scripthandle, "Misc", "ShowCinematics",ud.showcinematics,false,false);
+#endif // DUKE13D
    SCRIPT_PutNumber( scripthandle, "Misc", "HideWeapon",ud.hideweapon,false,false);
    SCRIPT_PutNumber( scripthandle, "Misc", "ShowWeapon",ud.showweapons,false,false);
+// 1.3d: weapon switch is not saved
+#if DUKE13D
+   /* 1.3D: the weapon-switch setting is not saved */
+#else
    SCRIPT_PutNumber( scripthandle, "Misc", "WeaponAutoSwitch",ud.weaponautoswitch,false,false);
+#endif // DUKE13D
 // 1.3d: autoaim is not saved
 #if DUKE13D
    /* 1.3D: the autoaim setting is not saved */

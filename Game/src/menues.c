@@ -2776,6 +2776,8 @@ else
 
             break;
 
+// 1.3d: options menu without autoaim / weapon-switch entries
+#if DUKE13D
         case 702:
             c = (320>>1)-120;
             rotatesprite(320<<15,19<<16,65536L,0,MENUBAR,16,0,10,0,0,xdim-1,ydim-1);
@@ -2783,11 +2785,79 @@ else
 
             onbar = 0;
 
-#if DUKE13D
-			x = probe(c+6,43,16,6); // 1.3D has no autoaim option
+            /* 1.3D: no autoaim and no weapon-switch options (both are always on) */
+            x = probe(c+6,43,16,6);
+
+            switch(x)
+            {
+                case -1:
+                    cmenu(200);
+                    break;
+
+                case 0:
+                    ud.shadows = 1-ud.shadows;
+                    break;
+                case 1:
+                    ud.screen_tilting = 1-ud.screen_tilting;
+                    break;
+                case 2:
+                    ud.showcinematics = !ud.showcinematics;
+                    break;
+                case 3:
+                    ud.hideweapon = !ud.hideweapon;
+                    vscrn(); // FIX_00056: Refresh issue w/FPS, small Weapon and custom FTA, when screen resized down
+                    break;
+                case 4:
+                    g_demo_forced_cameras = !g_demo_forced_cameras; /* presentation only; takes effect immediately */
+                    break;
+                case 5: // parental
+#ifndef AUSTRALIA
+                    cmenu(10000);
+#endif
+                    break;
+            }
+
+            menutext(c,43+16*0,SHX(-3),PHX(-3),"SHADOWS");
+            if(ud.shadows) menutext(c+160+40,43+16*0,0,0,"ON");
+            else menutext(c+160+40,43+16*0,0,0,"OFF");
+
+            menutext(c,43+16*1,SHX(-4),PHX(-4),"SCREEN TILTING");
+            switch(ud.screen_tilting)
+            {
+                case 0: menutext(c+160+40,43+16*1,0,0,"OFF");break;
+                case 1: menutext(c+160+40,43+16*1,0,0,"ON");break;
+                case 2: menutext(c+160+40,43+16*1,0,0,"FULL");break;
+            }
+
+            menutext(c,43+16*2,SHX(-3),PHX(-3),"CINEMATICS");
+            if(ud.showcinematics) menutext(c+160+40,43+16*2,0,0,"ON");
+            else menutext(c+160+40,43+16*2,0,0,"OFF");
+
+            menutext(c,43+16*3,SHX(-3),PHX(-3),"WEAPON MODEL");
+            if(ud.hideweapon) menutext(c+160+40,43+16*3,0,0,"OFF");
+            else menutext(c+160+40,43+16*3,0,0,"ON");
+
+            menutext(c,43+16*4,SHX(-4),PHX(-4),"DEMO CAMERAS");
+            if(g_demo_forced_cameras) menutext(c+160+40,43+16*4,0,0,"ON");
+            else menutext(c+160+40,43+16*4,0,0,"OFF");
+
+#ifndef AUSTRALIA
+            menutext(c,43+16*5,SHX(-9),PHX(-9),"PARENTAL LOCK");
 #else
+            menutext(c,43+16*5,SHX(-9),1,"PARENTAL LOCK");
+#endif
+
+            break;
+
+#else
+        case 702:
+            c = (320>>1)-120;
+            rotatesprite(320<<15,19<<16,65536L,0,MENUBAR,16,0,10,0,0,xdim-1,ydim-1);
+            menutext(320>>1,24,0,0,"GAME OPTIONS");
+
+            onbar = 0;
+
 			x = probe(c+6,43,16,7);
-#endif // DUKE13D
 
             switch(x)
             {
@@ -2812,14 +2882,6 @@ else
 				case 4:
 					ud.weaponautoswitch = !ud.weaponautoswitch;
 					break;
-#if DUKE13D
-				case 5: // parental
-#ifndef AUSTRALIA
-					cmenu(10000);
-#endif
-					break;
-
-#else
 				case 5:
 					// FIX_00045: Autoaim mode can now be toggled on/off from menu
 					if( nHostForceDisableAutoaim == 0)
@@ -2834,7 +2896,6 @@ else
 #endif
                     break;
 
-#endif // DUKE13D
 			}
 
 
@@ -2862,8 +2923,6 @@ else
 			if(ud.weaponautoswitch) menutext(c+160+40,43+16*4,0,0,"OFF");
             else menutext(c+160+40,43+16*4,0,0,"ON");
 
-#if DUKE13D
-#else
 			switch(ud.auto_aim)
             {
                 case 0: menutext(c,43+16*5,0,nHostForceDisableAutoaim,"AUTOAIM DISABLED BY HOST"); 
@@ -2874,23 +2933,16 @@ else
 						break;
             }
 
-#endif // DUKE13D
-#if DUKE13D
-#ifndef AUSTRALIA
-            menutext(c,43+16*5,SHX(-9),PHX(-9),"PARENTAL LOCK");
-#else
-            menutext(c,43+16*5,SHX(-9),1,"PARENTAL LOCK");
-#endif
-#else
 #ifndef AUSTRALIA
             menutext(c,43+16*6,SHX(-9),PHX(-9),"PARENTAL LOCK");
 #else
             menutext(c,43+16*6,SHX(-9),1,"PARENTAL LOCK");
 #endif
-#endif // DUKE13D
 
 
 			break;
+
+#endif // DUKE13D
 
         case 703:
 

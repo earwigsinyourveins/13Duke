@@ -190,6 +190,9 @@ extern void incur_damage(struct player_struct *p);
 //#line "player.c" 59
 extern void quickkill(struct player_struct *p);
 #if DUKE13D
+extern int32 g_demo_forced_cameras;
+#endif
+#if DUKE13D
 /* every quickkill() call is traced (13duke_trace.csv) with the source line that killed the player */
 extern void Duke13D_QuickKillTraced(struct player_struct *p, const char *file, int line);
 extern void Duke13D_TraceEvent(const char *fmt, ...);

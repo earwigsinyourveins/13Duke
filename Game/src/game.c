@@ -98,6 +98,16 @@ char firstdemofile[80] = { '\0' };
 void __interrupt __far newint24( int errval, int ax, int bp, int si );
 
 int recfilep,totalreccnt;
+
+#if DUKE13D
+/* Presentation only.  1.3D forces the SE27 "demo camera" views while a demo is watched from player 0's point of
+   view.  When this is 0 the renderer ignores ud.camerasprite during demo playback; the SE27 effector code (and
+   therefore every sprite/hittype value, the RNG and the simulation) runs exactly as in 1.3D either way. */
+int32 g_demo_forced_cameras = 1;   /* menu option "DEMO CAMERAS" / config "Misc.DemoCameras" */
+#define VIEWCAM() ((ud.recstat == 2 && !g_demo_forced_cameras) ? -1 : ud.camerasprite)
+#else
+#define VIEWCAM() (ud.camerasprite)
+#endif
 char debug_on = 0,actor_tog = 0,*rtsptr,memorycheckoveride=0;
 
 
@@ -2813,7 +2823,7 @@ void displayrest(long smoothratio)
         show2dsector[i>>3] |= (1<<(i&7));
     }
 #endif // DUKE13D
-    if(ud.camerasprite == -1)
+    if(VIEWCAM() == -1)
     {
         if( ud.overhead_on != 2 )
         {
@@ -2915,7 +2925,7 @@ void displayrest(long smoothratio)
         }
     }
 
-    if(ps[myconnectindex].newowner == -1 && ud.overhead_on == 0 && ud.crosshair && ud.camerasprite == -1)
+    if(ps[myconnectindex].newowner == -1 && ud.overhead_on == 0 && ud.crosshair && VIEWCAM() == -1)
         rotatesprite((160L-(ps[myconnectindex].look_ang>>1))<<16,100L<<16,65536L,0,CROSSHAIR,0,0,2+1,windowx1,windowy1,windowx2,windowy2);
 
     if(ps[myconnectindex].gm&MODE_TYPE)
@@ -3323,16 +3333,16 @@ void displayrooms(short snum,long smoothratio)
 
     animatecamsprite();
 
-    if(ud.camerasprite >= 0)
+    if(VIEWCAM() >= 0)
     {
         spritetype *s;
 
-        s = &sprite[ud.camerasprite];
+        s = &sprite[VIEWCAM()];
 
         if(s->yvel < 0) s->yvel = -100;
         else if(s->yvel > 199) s->yvel = 300;
 
-        cang = hittype[ud.camerasprite].tempang+mulscale16((long)(((s->ang+1024-hittype[ud.camerasprite].tempang)&2047)-1024),smoothratio);
+        cang = hittype[VIEWCAM()].tempang+mulscale16((long)(((s->ang+1024-hittype[VIEWCAM()].tempang)&2047)-1024),smoothratio);
 
         se40code(s->x,s->y,s->z,cang,s->yvel,smoothratio);
 
@@ -7510,7 +7520,7 @@ void animatesprites(long x,long y,short a,long smoothratio)
                     t1 = *(actorscrptr[APLAYER]+2);
                 }
 
-                if(ud.camerasprite == -1 && ps[p].newowner == -1)
+                if(VIEWCAM() == -1 && ps[p].newowner == -1)
                     if(s->owner >= 0 && display_mirror == 0 && ps[p].over_shoulder_on == 0 )
                         if( ud.multimode < 2 || ( ud.multimode > 1 && p == screenpeek ) )
                 {
@@ -7786,7 +7796,7 @@ void animatesprites(long x,long y,short a,long smoothratio)
 			if(s->owner >= 0 && sprite[s->owner].statnum < MAXSTATUS)
                 {
                     if(sprite[s->owner].picnum == APLAYER)
-                        if(ud.camerasprite == -1)
+                        if(VIEWCAM() == -1)
                             if(screenpeek == sprite[s->owner].yvel && display_mirror == 0)
                     {
                         t->owner = -1;
@@ -10888,6 +10898,16 @@ static void handle_demo_playback_controls(void)
         changed = 1;
     }
 
+#if DUKE13D
+    /* C: toggle the forced SE27 demo cameras (presentation only, see g_demo_forced_cameras) */
+    if (KB_KeyPressed(sc_C))
+    {
+        KB_ClearKeyDown(sc_C);
+        g_demo_forced_cameras = !g_demo_forced_cameras;
+        adduserquote(g_demo_forced_cameras ? "DEMO CAMERAS: ON (1.3D)" : "DEMO CAMERAS: OFF");
+    }
+#endif
+
     /* Start the new pacing interval at the current clock.  This prevents a
        speed change or resume from consuming a burst of overdue demo inputs. */
     if (changed)
@@ -11732,7 +11752,8 @@ static unsigned long Duke13D_Mix(unsigned long h, unsigned long v) { return (h ^
 static void Duke13D_TraceReset(void)
 {
     g_trace_tic = 0;
-    if (g_trace) { fprintf(g_trace,"# new demo/recording: volume %d level %d skill %d players %d\n",
+    if (g_trace) { fprintf(g_trace,"# columns: tic,time,seed,hash_sprites,hash_sectors,hash_walls, then per player: avel,horz,fvel,svel,bits,x,y,z,ang,sect,health,weapon,zvel,armor,ammo_of_current_weapon,frags,suicides\n");
+                   fprintf(g_trace,"# new demo/recording: volume %d level %d skill %d players %d\n",
                            (int)ud.volume_number,(int)ud.level_number,(int)ud.player_skill,(int)ud.multimode);
                    fflush(g_trace); }
 }
@@ -11777,10 +11798,11 @@ static void Duke13D_Trace(void)
     fprintf(g_trace,"%ld,%.2f,%08lX,%08lX,%08lX,%08lX",g_trace_tic,(double)g_trace_tic/30.0,
             (unsigned long)randomseed,hs,hc,hw);
     for (p = connecthead; p >= 0; p = connectpoint2[p])
-        fprintf(g_trace,",%d,%d,%d,%d,%08lX,%ld,%ld,%ld,%d,%d,%d,%d,%ld",
+        fprintf(g_trace,",%d,%d,%d,%d,%08lX,%ld,%ld,%ld,%d,%d,%d,%d,%ld,%d,%d,%d,%d",
                 (int)sync[p].avel,(int)sync[p].horz,(int)sync[p].fvel,(int)sync[p].svel,(unsigned long)sync[p].bits,
                 (long)ps[p].posx,(long)ps[p].posy,(long)ps[p].posz,(int)ps[p].ang,(int)ps[p].cursectnum,
-                (int)sprite[ps[p].i].extra,(int)ps[p].curr_weapon,(long)ps[p].poszv);
+                (int)sprite[ps[p].i].extra,(int)ps[p].curr_weapon,(long)ps[p].poszv,
+                (int)ps[p].shield_amount,(int)ps[p].ammo_amount[ps[p].curr_weapon],(int)ps[p].frag,(int)ps[p].fraggedself);
     fprintf(g_trace,"\n");
     fflush(g_trace);
     g_trace_tic++;
@@ -12663,6 +12685,9 @@ void vglass(long x,long y,short a,short wn,short n)
 
 void lotsofglass(short i,short wallnum,short n)
 {
+#if DUKE13D
+    Duke13D_TraceEvent("GLASS lotsofglass owner=%d picnum=%d wall=%d n=%d at %ld,%ld,%ld seed=%08lX",(int)i,(int)sprite[i].picnum,(int)wallnum,(int)n,(long)sprite[i].x,(long)sprite[i].y,(long)sprite[i].z,(unsigned long)randomseed);
+#endif
      long j, xv, yv, z, x1, y1;
      short sect, a;
 
@@ -12711,6 +12736,9 @@ void lotsofglass(short i,short wallnum,short n)
 
 void spriteglass(short i,short n)
 {
+#if DUKE13D
+    Duke13D_TraceEvent("GLASS spriteglass owner=%d picnum=%d n=%d at %ld,%ld,%ld seed=%08lX",(int)i,(int)sprite[i].picnum,(int)n,(long)sprite[i].x,(long)sprite[i].y,(long)sprite[i].z,(unsigned long)randomseed);
+#endif
     long j, k, a, z;
 
     for(j=n;j>0;j--)
@@ -12724,6 +12752,9 @@ void spriteglass(short i,short n)
 
 void ceilingglass(short i,short sectnum,short n)
 {
+#if DUKE13D
+    Duke13D_TraceEvent("GLASS ceilingglass owner=%d sect=%d n=%d seed=%08lX",(int)i,(int)sectnum,(int)n,(unsigned long)randomseed);
+#endif
      long j, xv, yv, z, x1, y1;
      short a,s, startwall,endwall;
 
@@ -12753,6 +12784,9 @@ void ceilingglass(short i,short sectnum,short n)
 
 void lotsofcolourglass(short i,short wallnum,short n)
 {
+#if DUKE13D
+    Duke13D_TraceEvent("GLASS lotsofcolourglass owner=%d wall=%d n=%d at %ld,%ld,%ld seed=%08lX",(int)i,(int)wallnum,(int)n,(long)sprite[i].x,(long)sprite[i].y,(long)sprite[i].z,(unsigned long)randomseed);
+#endif
      long j, xv, yv, z, x1, y1;
      short sect = -1, a, k;
 
@@ -12941,7 +12975,7 @@ void takescreenshot(void)
 	time(&time4file);
 	tmHMS = localtime(&time4file);
 
-	sprintf(tempbuf, "xDuke(v%d.%d) %.4d.%.2d.%.2d %.2dh%.2dm%.2ds", 
+	sprintf(tempbuf, "13Duke(v%d.%d) %.4d.%.2d.%.2d %.2dh%.2dm%.2ds", 
 			XDUKE_REV_X,
 			XDUKE_REV_DOT_Y,
 			tmHMS->tm_year+1900,
