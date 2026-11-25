@@ -281,6 +281,27 @@ unsigned short mapCRC;
 
 #include "a.h"
 
+#if DUKE13D
+/* ---- DOS 1.3D tile-array aliasing (collision code only) -----------------------------------------------------
+   Real 1.3D has MAXTILES 4096.  A map that uses a tile number t >= 4096 makes DOS read *past the end* of
+   tilesizx[]/tilesizy[]/picanm[], i.e. into the variables that follow them in memory (BSS order from build.h:
+   tilesizx[4096], tilesizy[4096], walock[4096], numtiles, picanm[4096], waloff[4096]).  For t = 4096+k:
+       tilesizx[t] -> tilesizy[k]        tilesizy[t] -> the two bytes walock[2k],walock[2k+1]
+       picanm[t]   -> waloff[k]          (0 while tile k is not resident)
+   The walock bytes depend on the tile cache at run time: 0 for a tile that is not resident, 199 when resident.
+   dostilealias: 0 = off (tile sizes are 0 there, as before);  1 = emulate with walock bytes 0;
+                 2 = emulate with walock bytes 199 (tilesizy = 0xC7C7).  picanm is taken as 0 in both modes.
+   Only clipmove/getzrange/hitscan/neartag use these accessors; rendering is untouched. */
+#define DT_ALIAS(t) (dostilealias && (unsigned long)(t) >= 4096UL && (unsigned long)(t) < 8192UL)
+#define TSX(t) (DT_ALIAS(t) ? (long)tilesizy[(unsigned long)(t)-4096UL] : (long)tilesizx[t])
+#define TSY(t) (DT_ALIAS(t) ? (dostilealias == 2 ? (long)(short)0xC7C7 : 0L) : (long)tilesizy[t])
+#define PANM(t) (DT_ALIAS(t) ? 0L : (long)picanm[t])
+#else
+#define TSX(t) ((long)tilesizx[t])
+#define TSY(t) ((long)tilesizy[t])
+#define PANM(t) ((long)picanm[t])
+#endif
+
 // 1.3d: 1.3D sqrt algorithm (2048-word table)
 #if DUKE13D
 static __inline long nsqrtasm(unsigned long param)
@@ -6032,16 +6053,16 @@ int hitscan(long xs, long ys, long zs, short sectnum,
 
 					intz = zs+scale(vz,topt,bot);
 
-					i = (tilesizy[spr->picnum]*spr->yrepeat<<2);
+					i = (TSY(spr->picnum)*spr->yrepeat<<2);
 					if (cstat&128) z1 += (i>>1);
-					if (picanm[spr->picnum]&0x00ff0000) z1 -= ((long)((signed char)((picanm[spr->picnum]>>16)&255))*spr->yrepeat<<2);
+					if (PANM(spr->picnum)&0x00ff0000) z1 -= ((long)((signed char)((PANM(spr->picnum)>>16)&255))*spr->yrepeat<<2);
 					if ((intz > z1) || (intz < z1-i)) continue;
 					topu = vx*(y1-ys) - vy*(x1-xs);
 
 					offx = scale(vx,topu,bot);
 					offy = scale(vy,topu,bot);
 					dist = offx*offx + offy*offy;
-					i = tilesizx[spr->picnum]*spr->xrepeat; i *= i;
+					i = TSX(spr->picnum)*spr->xrepeat; i *= i;
 					if (dist > (i>>7)) continue;
 					intx = xs + scale(vx,topt,bot);
 					inty = ys + scale(vy,topt,bot);
@@ -6057,11 +6078,11 @@ int hitscan(long xs, long ys, long zs, short sectnum,
 						 * Given: (x1, y1) starts out as the center point
 						 */
 					tilenum = spr->picnum;
-					xoff = (long)((signed char)((picanm[tilenum]>>8)&255))+((long)spr->xoffset);
+					xoff = (long)((signed char)((PANM(tilenum)>>8)&255))+((long)spr->xoffset);
 					if ((cstat&4) > 0) xoff = -xoff;
 					k = spr->ang; l = spr->xrepeat;
 					dax = sintable[k&2047]*l; day = sintable[(k+1536)&2047]*l;
-					l = tilesizx[tilenum]; k = (l>>1)+xoff;
+					l = TSX(tilenum); k = (l>>1)+xoff;
 					x1 -= mulscale16(dax,k); x2 = x1+mulscale16(dax,l);
 					y1 -= mulscale16(day,k); y2 = y1+mulscale16(day,l);
 
@@ -6072,9 +6093,9 @@ int hitscan(long xs, long ys, long zs, short sectnum,
 
 					if (klabs(intx-xs)+klabs(inty-ys) > klabs((*hitx)-xs)+klabs((*hity)-ys)) continue;
 
-					k = ((tilesizy[spr->picnum]*spr->yrepeat)<<2);
+					k = ((TSY(spr->picnum)*spr->yrepeat)<<2);
 					if (cstat&128) daz = spr->z+(k>>1); else daz = spr->z;
-					if (picanm[spr->picnum]&0x00ff0000) daz -= ((long)((signed char)((picanm[spr->picnum]>>16)&255))*spr->yrepeat<<2);
+					if (PANM(spr->picnum)&0x00ff0000) daz -= ((long)((signed char)((PANM(spr->picnum)>>16)&255))*spr->yrepeat<<2);
 					if ((intz < daz) && (intz > daz-k))
 					{
 						*hitsect = dasector; *hitwall = -1; *hitsprite = z;
@@ -6094,15 +6115,15 @@ int hitscan(long xs, long ys, long zs, short sectnum,
 					if (klabs(intx-xs)+klabs(inty-ys) > klabs((*hitx)-xs)+klabs((*hity)-ys)) continue;
 
 					tilenum = spr->picnum;
-					xoff = (long)((signed char)((picanm[tilenum]>>8)&255))+((long)spr->xoffset);
-					yoff = (long)((signed char)((picanm[tilenum]>>16)&255))+((long)spr->yoffset);
+					xoff = (long)((signed char)((PANM(tilenum)>>8)&255))+((long)spr->xoffset);
+					yoff = (long)((signed char)((PANM(tilenum)>>16)&255))+((long)spr->yoffset);
 					if ((cstat&4) > 0) xoff = -xoff;
 					if ((cstat&8) > 0) yoff = -yoff;
 
 					ang = spr->ang;
 					cosang = sintable[(ang+512)&2047]; sinang = sintable[ang];
-					xspan = tilesizx[tilenum]; xrepeat = spr->xrepeat;
-					yspan = tilesizy[tilenum]; yrepeat = spr->yrepeat;
+					xspan = TSX(tilenum); xrepeat = spr->xrepeat;
+					yspan = TSY(tilenum); yrepeat = spr->yrepeat;
 
 					dax = ((xspan>>1)+xoff)*xrepeat; day = ((yspan>>1)+yoff)*yrepeat;
 					x1 += dmulscale16(sinang,dax,cosang,day)-intx;
@@ -6235,9 +6256,9 @@ int neartag(long xs, long ys, long zs, short sectnum, short ange,
 					if (bot != 0)
 					{
 						intz = zs+scale(vz,topt,bot);
-						i = tilesizy[spr->picnum]*spr->yrepeat;
+						i = TSY(spr->picnum)*spr->yrepeat;
 						if (spr->cstat&128) z1 += (i<<1);
-						if (picanm[spr->picnum]&0x00ff0000) z1 -= ((long)((signed char)((picanm[spr->picnum]>>16)&255))*spr->yrepeat<<2);
+						if (PANM(spr->picnum)&0x00ff0000) z1 -= ((long)((signed char)((PANM(spr->picnum)>>16)&255))*spr->yrepeat<<2);
 						if ((intz <= z1) && (intz >= z1-(i<<2)))
 						{
 							topu = vx*(y1-ys) - vy*(x1-xs);
@@ -6245,7 +6266,7 @@ int neartag(long xs, long ys, long zs, short sectnum, short ange,
 							offx = scale(vx,topu,bot);
 							offy = scale(vy,topu,bot);
 							dist = offx*offx + offy*offy;
-							i = (tilesizx[spr->picnum]*spr->xrepeat); i *= i;
+							i = (TSX(spr->picnum)*spr->xrepeat); i *= i;
 							if (dist <= (i>>7))
 							{
 								intx = xs + scale(vx,topt,bot);
@@ -6512,9 +6533,9 @@ int clipmove (long *x, long *y, long *z, short *sectnum,
 				case 0:
 					if ((x1 >= xmin) && (x1 <= xmax) && (y1 >= ymin) && (y1 <= ymax))
 					{
-						k = ((tilesizy[spr->picnum]*spr->yrepeat)<<2);
+						k = ((TSY(spr->picnum)*spr->yrepeat)<<2);
 						if (cstat&128) daz = spr->z+(k>>1); else daz = spr->z;
-						if (picanm[spr->picnum]&0x00ff0000) daz -= ((long)((signed char)((picanm[spr->picnum]>>16)&255))*spr->yrepeat<<2);
+						if (PANM(spr->picnum)&0x00ff0000) daz -= ((long)((signed char)((PANM(spr->picnum)>>16)&255))*spr->yrepeat<<2);
 						if (((*z) < daz+ceildist) && ((*z) > daz-k-flordist))
 						{
 							bsz = (spr->clipdist<<2)+walldist; if (gx < 0) bsz = -bsz;
@@ -6525,9 +6546,9 @@ int clipmove (long *x, long *y, long *z, short *sectnum,
 					}
 					break;
 				case 16:
-					k = ((tilesizy[spr->picnum]*spr->yrepeat)<<2);
+					k = ((TSY(spr->picnum)*spr->yrepeat)<<2);
 					if (cstat&128) daz = spr->z+(k>>1); else daz = spr->z;
-					if (picanm[spr->picnum]&0x00ff0000) daz -= ((long)((signed char)((picanm[spr->picnum]>>16)&255))*spr->yrepeat<<2);
+					if (PANM(spr->picnum)&0x00ff0000) daz -= ((long)((signed char)((PANM(spr->picnum)>>16)&255))*spr->yrepeat<<2);
 					daz2 = daz-k;
 					daz += ceildist; daz2 -= flordist;
 					if (((*z) < daz) && ((*z) > daz2))
@@ -6537,11 +6558,11 @@ int clipmove (long *x, long *y, long *z, short *sectnum,
 							 * Given: (x1, y1) starts out as the center point
                              */
                         tilenum = spr->picnum;
-						xoff = (long)((signed char)((picanm[tilenum]>>8)&255))+((long)spr->xoffset);
+						xoff = (long)((signed char)((PANM(tilenum)>>8)&255))+((long)spr->xoffset);
 						if ((cstat&4) > 0) xoff = -xoff;
 						k = spr->ang; l = spr->xrepeat;
 						dax = sintable[k&2047]*l; day = sintable[(k+1536)&2047]*l;
-						l = tilesizx[tilenum]; k = (l>>1)+xoff;
+						l = TSX(tilenum); k = (l>>1)+xoff;
 						x1 -= mulscale16(dax,k); x2 = x1+mulscale16(dax,l);
 						y1 -= mulscale16(day,k); y2 = y1+mulscale16(day,l);
 						if (clipinsideboxline(cx,cy,x1,y1,x2,y2,rad) != 0)
@@ -6576,15 +6597,15 @@ int clipmove (long *x, long *y, long *z, short *sectnum,
 							if (((*z) > spr->z) == ((cstat&8)==0)) continue;
 
 						tilenum = spr->picnum;
-						xoff = (long)((signed char)((picanm[tilenum]>>8)&255))+((long)spr->xoffset);
-						yoff = (long)((signed char)((picanm[tilenum]>>16)&255))+((long)spr->yoffset);
+						xoff = (long)((signed char)((PANM(tilenum)>>8)&255))+((long)spr->xoffset);
+						yoff = (long)((signed char)((PANM(tilenum)>>16)&255))+((long)spr->yoffset);
 						if ((cstat&4) > 0) xoff = -xoff;
 						if ((cstat&8) > 0) yoff = -yoff;
 
 						k = spr->ang;
 						cosang = sintable[(k+512)&2047]; sinang = sintable[k];
-						xspan = tilesizx[tilenum]; xrepeat = spr->xrepeat;
-						yspan = tilesizy[tilenum]; yrepeat = spr->yrepeat;
+						xspan = TSX(tilenum); xrepeat = spr->xrepeat;
+						yspan = TSY(tilenum); yrepeat = spr->yrepeat;
 
 						dax = ((xspan>>1)+xoff)*xrepeat; day = ((yspan>>1)+yoff)*yrepeat;
 						rxi[0] = x1 + dmulscale16(sinang,dax,cosang,day);
@@ -7520,27 +7541,27 @@ void getzrange(long x, long y, long z, short sectnum,
 						if ((klabs(x1-x) <= k) && (klabs(y1-y) <= k))
 						{
 							daz = spr->z;
-							k = ((tilesizy[spr->picnum]*spr->yrepeat)<<1);
+							k = ((TSY(spr->picnum)*spr->yrepeat)<<1);
 							if (cstat&128) daz += k;
-							if (picanm[spr->picnum]&0x00ff0000) daz -= ((long)((signed char)((picanm[spr->picnum]>>16)&255))*spr->yrepeat<<2);
+							if (PANM(spr->picnum)&0x00ff0000) daz -= ((long)((signed char)((PANM(spr->picnum)>>16)&255))*spr->yrepeat<<2);
 							daz2 = daz - (k<<1);
 							clipyou = 1;
 						}
 						break;
 					case 16:
 						tilenum = spr->picnum;
-						xoff = (long)((signed char)((picanm[tilenum]>>8)&255))+((long)spr->xoffset);
+						xoff = (long)((signed char)((PANM(tilenum)>>8)&255))+((long)spr->xoffset);
 						if ((cstat&4) > 0) xoff = -xoff;
 						k = spr->ang; l = spr->xrepeat;
 						dax = sintable[k&2047]*l; day = sintable[(k+1536)&2047]*l;
-						l = tilesizx[tilenum]; k = (l>>1)+xoff;
+						l = TSX(tilenum); k = (l>>1)+xoff;
 						x1 -= mulscale16(dax,k); x2 = x1+mulscale16(dax,l);
 						y1 -= mulscale16(day,k); y2 = y1+mulscale16(day,l);
 						if (clipinsideboxline(x,y,x1,y1,x2,y2,walldist+1) != 0)
 						{
-							daz = spr->z; k = ((tilesizy[spr->picnum]*spr->yrepeat)<<1);
+							daz = spr->z; k = ((TSY(spr->picnum)*spr->yrepeat)<<1);
 							if (cstat&128) daz += k;
-							if (picanm[spr->picnum]&0x00ff0000) daz -= ((long)((signed char)((picanm[spr->picnum]>>16)&255))*spr->yrepeat<<2);
+							if (PANM(spr->picnum)&0x00ff0000) daz -= ((long)((signed char)((PANM(spr->picnum)>>16)&255))*spr->yrepeat<<2);
 							daz2 = daz-(k<<1);
 							clipyou = 1;
 						}
@@ -7552,15 +7573,15 @@ void getzrange(long x, long y, long z, short sectnum,
 							if ((z > daz) == ((cstat&8)==0)) continue;
 
 						tilenum = spr->picnum;
-						xoff = (long)((signed char)((picanm[tilenum]>>8)&255))+((long)spr->xoffset);
-						yoff = (long)((signed char)((picanm[tilenum]>>16)&255))+((long)spr->yoffset);
+						xoff = (long)((signed char)((PANM(tilenum)>>8)&255))+((long)spr->xoffset);
+						yoff = (long)((signed char)((PANM(tilenum)>>16)&255))+((long)spr->yoffset);
 						if ((cstat&4) > 0) xoff = -xoff;
 						if ((cstat&8) > 0) yoff = -yoff;
 
 						ang = spr->ang;
 						cosang = sintable[(ang+512)&2047]; sinang = sintable[ang];
-						xspan = tilesizx[tilenum]; xrepeat = spr->xrepeat;
-						yspan = tilesizy[tilenum]; yrepeat = spr->yrepeat;
+						xspan = TSX(tilenum); xrepeat = spr->xrepeat;
+						yspan = TSY(tilenum); yrepeat = spr->yrepeat;
 
 						dax = ((xspan>>1)+xoff)*xrepeat; day = ((yspan>>1)+yoff)*yrepeat;
 						x1 += dmulscale16(sinang,dax,cosang,day)-x;

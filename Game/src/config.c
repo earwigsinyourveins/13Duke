@@ -363,6 +363,7 @@ void CONFIG_SetDefaults( void )
 #if DUKE13D
 ud.gitdat_mdk = 0;
    g_demo_forced_cameras = 1; /* 1.3D behaviour: SE27 demo cameras are shown */
+   dostilealias = 0;
 #else
    ud.gitdat_mdk = 0;
 #endif // DUKE13D
@@ -787,6 +788,7 @@ void CONFIG_ReadSetup( void )
 SCRIPT_GetNumber( scripthandle, "Misc", "ShowCinematics",&ud.showcinematics);
    SCRIPT_GetNumber( scripthandle, "Misc", "DemoCameras",&g_demo_forced_cameras);
    g_demo_forced_cameras = (g_demo_forced_cameras != 0);
+   { int32 dta = 0; SCRIPT_GetNumber( scripthandle, "Misc", "DosTileAlias",&dta); dostilealias = (dta < 0 || dta > 2) ? 0 : dta; }
 #else
    SCRIPT_GetNumber( scripthandle, "Misc", "ShowCinematics",&ud.showcinematics);
 #endif // DUKE13D
@@ -967,6 +969,7 @@ void CONFIG_WriteSetup( void )
 #if DUKE13D
 SCRIPT_PutNumber( scripthandle, "Misc", "ShowCinematics",ud.showcinematics,false,false);
    SCRIPT_PutNumber( scripthandle, "Misc", "DemoCameras",g_demo_forced_cameras,false,false);
+   SCRIPT_PutNumber( scripthandle, "Misc", "DosTileAlias",(int32)dostilealias,false,false);
 #else
    SCRIPT_PutNumber( scripthandle, "Misc", "ShowCinematics",ud.showcinematics,false,false);
 #endif // DUKE13D

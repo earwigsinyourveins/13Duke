@@ -100,11 +100,11 @@ void __interrupt __far newint24( int errval, int ax, int bp, int si );
 int recfilep,totalreccnt;
 
 #if DUKE13D
-/* Presentation only.  1.3D forces the SE27 "demo camera" views while a demo is watched from player 0's point of
-   view.  When this is 0 the renderer ignores ud.camerasprite during demo playback; the SE27 effector code (and
-   therefore every sprite/hittype value, the RNG and the simulation) runs exactly as in 1.3D either way. */
+/* 1.3D forces the SE27 "demo camera" views while a demo is watched from player 0's point of view.  When this
+   option is 0 the SE27 effector is skipped during demo playback (see actors.c), so ud.camerasprite stays -1 and the
+   normal first-person view (weapon included) is shown.  Gameplay is unaffected: SE27 writes only its own sprite. */
 int32 g_demo_forced_cameras = 1;   /* menu option "DEMO CAMERAS" / config "Misc.DemoCameras" */
-#define VIEWCAM() ((ud.recstat == 2 && !g_demo_forced_cameras) ? -1 : ud.camerasprite)
+#define VIEWCAM() (ud.camerasprite)   /* cameras are switched off by skipping SE27 in moveeffectors (actors.c) */
 #else
 #define VIEWCAM() (ud.camerasprite)
 #endif
@@ -11753,6 +11753,7 @@ static void Duke13D_TraceReset(void)
 {
     g_trace_tic = 0;
     if (g_trace) { fprintf(g_trace,"# columns: tic,time,seed,hash_sprites,hash_sectors,hash_walls, then per player: avel,horz,fvel,svel,bits,x,y,z,ang,sect,health,weapon,zvel,armor,ammo_of_current_weapon,frags,suicides\n");
+                   fprintf(g_trace,"# options: DosTileAlias=%ld DemoCameras=%d\n",(long)dostilealias,(int)g_demo_forced_cameras);
                    fprintf(g_trace,"# new demo/recording: volume %d level %d skill %d players %d\n",
                            (int)ud.volume_number,(int)ud.level_number,(int)ud.player_skill,(int)ud.multimode);
                    fflush(g_trace); }
@@ -11777,7 +11778,7 @@ static void Duke13D_Trace(void)
     if (!g_trace_enabled) return;
 
     for (i = 0; i < MAXSPRITES; i++)
-        if (sprite[i].statnum < MAXSTATUS)
+        if (sprite[i].statnum < MAXSTATUS && !(sprite[i].picnum == SECTOREFFECTOR && sprite[i].lotag == 27))
         {
             hs = Duke13D_Mix(hs,(unsigned long)sprite[i].x);   hs = Duke13D_Mix(hs,(unsigned long)sprite[i].y);
             hs = Duke13D_Mix(hs,(unsigned long)sprite[i].z);   hs = Duke13D_Mix(hs,(unsigned long)sprite[i].ang);

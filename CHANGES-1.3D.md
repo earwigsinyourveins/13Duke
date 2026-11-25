@@ -190,3 +190,24 @@ Game/src/duke3d.h: TICRATE=120, TICSPERFRAME=4 fixed under DUKE13D.
   ~29 s (same view, same RPG-ammo message).  => Player 1's position diverges between ~29 s and ~32.6 s.
 - The map uses tile numbers up to 4931 (e.g. 223 walls on tile 4152); real 1.3D has only 4096 tile slots and reads past
   its arrays for those tiles, we have 9216 and show hall-of-mirrors.  Render only; not reproduced.
+
+## ROUND 12
+- DEMO CAMERAS option reworked: when OFF (menu / config Misc.DemoCameras / C key) the SE27 demo-camera effector is
+  skipped while watching a demo (moveeffectors case 27).  This is simulation-neutral (SE27 writes only its own sprite's
+  tempang/t[0]/ang and ud.camerasprite; it reads players but draws no random numbers and moves nothing else) and it fixes
+  the weapon vanishing from the view, which came from other code still seeing ud.camerasprite set.  The render-only
+  VIEWCAM() trick of round 10 is reverted to a plain read.  The trace hash ignores SE27 sprites, so traces are comparable
+  with the option on or off.
+- EXPERIMENT (default off): config Misc.DosTileAlias = 0/1/2.  Emulates how real DOS 1.3D reads PAST its 4096-entry tile
+  arrays for tile numbers >= 4096 (tilesizx[4096+k] = tilesizy[k]; tilesizy[4096+k] = walock bytes (0 -> mode 1,
+  199 -> mode 2); picanm = 0).  Used ONLY by clipmove/getzrange/hitscan/neartag (accessors TSX/TSY/PANM), never by the
+  renderer.  HFIOD2 has four BLOCKING wall sprites on tiles 4365/4386 (sprite #602 at 1920,-2560,-39936 in sector 64);
+  Player 2 jumps past it at 31.1-31.4 s at the same height (z -39957 vs -39936), exactly where our and DOS positions
+  start to differ.  The trace header now records "# options: DosTileAlias=.. DemoCameras=..".
+- Analysis of the control demos (IOD1 3p, SGFrenzy) vs HFIOD2: controls have 0-4 sloped floors / 0 sloped ceilings /
+  <100 sprites / no tiles >= 4096; HFIOD2 has 63+184 sloped surfaces, 627 sprites, 458 walls and 4 sprites on tiles
+  >= 4096.  Every other unique HFIOD2 feature is touched by both players within the first ~8 s while sync holds, so it is
+  not the cause; the tile >= 4096 sprites are the only unique feature first touched inside the divergence window.
+- Trace 73ab8a (older build, 13 columns/player) is identical to 9766d4: the simulation is reproducible.  A line-of-fire
+  search around Player 2's chaingun burst at 32.6 s finds no time shift of our Player 1 that lines up -> the DOS
+  difference is spatial (Player 2's own path), not a lag.

@@ -62,6 +62,9 @@ endif
 OPT ?= -O2
 COMMON_CFLAGS   = $(OPT) -funsigned-char -fwrapv -fno-strict-aliasing -fcommon
 COMMON_CXXFLAGS = $(OPT) -funsigned-char -fwrapv -fno-strict-aliasing -fcommon
+# Link GNU libstdc++ statically so the executable does not depend on the
+# newer libstdc++-6.dll that imports GetDynamicTimeZoneInformation (Vista+).
+CXX_RUNTIME_FLAGS ?= -static-libstdc++
 CFLAGS   ?= $(COMMON_CFLAGS) -std=gnu89
 CXXFLAGS ?= $(COMMON_CXXFLAGS) -std=gnu++98 -fpermissive
 LDFLAGS  ?=
@@ -185,7 +188,7 @@ $(ENGINE_LIB): $(ENGINE_OBJS) | $(BUILD_DIR)
 	$(RANLIB) "$@"
 
 $(TARGET): $(GAME_OBJS) $(ENGINE_LIB) $(RESOURCE_OBJ) | bin
-	$(CXX) $(LDFLAGS) -o "$@" $(GAME_OBJS) $(ENGINE_LIB) $(RESOURCE_OBJ) $(SDL_MIXER_LIBS) $(SDL_LIBS) -lwinmm -lws2_32 -ldxguid
+	$(CXX) $(LDFLAGS) $(CXX_RUNTIME_FLAGS) -o "$@" $(GAME_OBJS) $(ENGINE_LIB) $(RESOURCE_OBJ) $(SDL_MIXER_LIBS) $(SDL_LIBS) -lwinmm -lws2_32 -ldxguid
 
 check-toolchain:
 	@echo "CC target: $$($(CC) -dumpmachine)"

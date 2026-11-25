@@ -182,6 +182,9 @@ EXTERN short nextspritesect[MAXSPRITES], nextspritestat[MAXSPRITES];
 EXTERN short tilesizx[MAXTILES], tilesizy[MAXTILES];
 EXTERN char walock[MAXTILES];
 EXTERN long numtiles, picanm[MAXTILES], waloff[MAXTILES];
+#if DUKE13D
+EXTERN long dostilealias; /* 0 = off; 1/2 = emulate DOS reads past the 4096-entry tile arrays in collision code */
+#endif
 
     /*
 	 * These variables are for auto-mapping with the draw2dscreen function.

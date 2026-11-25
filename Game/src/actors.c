@@ -10776,6 +10776,9 @@ void moveeffectors(void)   //STATNUM 3
             case 27:
 
                 if(ud.recstat == 0) break;
+                /* DEMO CAMERAS option off: do not run the demo-camera effector while watching a demo.  It only writes
+                   its own sprite (tempang, t[0], ang) and ud.camerasprite, draws no random numbers and moves nothing else. */
+                if(ud.recstat == 2 && !g_demo_forced_cameras) break;
 
                 hittype[i].tempang = s->ang;
 
