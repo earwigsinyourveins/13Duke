@@ -402,6 +402,10 @@ extern void displayrooms(short snum,long smoothratio);
 extern short LocateTheLocator(short n,short sn);
 //#line "game.c" 2459
 extern short EGS(short whatsect,long s_x,long s_y,long s_z,short s_pn,signed char s_s,signed char s_xr,signed char s_yr,short s_a,short s_ve,long s_zv,short s_ow,signed char s_ss);
+extern short spawnrandomscrap(spritetype *s,short owner);
+extern short spawnrandomscrap6(short sect,long x,long y,long z,short owner);
+extern short spawnrandomscrap3(short sect,long x,long y,long z,short owner,long ownerzvel,short randomz);
+extern short spawnrandomscrap1(short sect,long x,long y,long z,short owner,signed char repeat,long ownerzvel,short zvelmode);
 //#line "game.c" 2537
 extern char wallswitchcheck(short i);
 //#line "game.c" 2588

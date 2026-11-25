@@ -2607,11 +2607,17 @@ char parse(void)
 						s = 0;
 					else s = (TRAND%3);
 
-					l = EGS(g_sp->sectnum,
+					{
+						long zvel = -(TRAND&2047);
+						short xvel = (TRAND&127)+32;
+						short ang = TRAND&2047;
+						signed char yrepeat = 32+(TRAND&15);
+						signed char xrepeat = 32+(TRAND&15);
+						l = EGS(g_sp->sectnum,
 							g_sp->x,g_sp->y,g_sp->z-(16<<8),
-							dnum+s,g_sp->shade,32+(TRAND&15),32+(TRAND&15),
-							TRAND&2047,(TRAND&127)+32,
-							-(TRAND&2047),g_i,5);
+							dnum+s,g_sp->shade,xrepeat,yrepeat,
+							ang,xvel,zvel,g_i,5);
+					}
 					if(g_sp->picnum == BLIMP && dnum == SCRAP1)
 						sprite[l].yvel = weaponsandammosprites[j%14];
 					else sprite[l].yvel = -1;
@@ -3659,11 +3665,17 @@ char parse(void)
                         s = 0;
                     else s = (TRAND%3);
 
-                    l = EGS(g_sp->sectnum,
-                            g_sp->x+(TRAND&255)-128,g_sp->y+(TRAND&255)-128,g_sp->z-(8<<8)-(TRAND&8191),
-                            dnum+s,g_sp->shade,32+(TRAND&15),32+(TRAND&15),
-                            TRAND&2047,(TRAND&127)+32,
-                            -(TRAND&2047),g_i,5);
+                    {
+                        long zvel = -(TRAND&2047);
+                        short xvel = (TRAND&127)+32;
+                        short ang = TRAND&2047;
+                        signed char yrepeat = 32+(TRAND&15);
+                        signed char xrepeat = 32+(TRAND&15);
+                        long z = g_sp->z-(8<<8)-(TRAND&8191);
+                        long y = g_sp->y+(TRAND&255)-128;
+                        long x = g_sp->x+(TRAND&255)-128;
+                        l = EGS(g_sp->sectnum,x,y,z,dnum+s,g_sp->shade,xrepeat,yrepeat,ang,xvel,zvel,g_i,5);
+                    }
                     if(g_sp->picnum == BLIMP && dnum == SCRAP1)
                         sprite[l].yvel = weaponsandammosprites[j%14];
                     else sprite[l].yvel = -1;

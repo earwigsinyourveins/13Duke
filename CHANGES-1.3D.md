@@ -211,3 +211,23 @@ Game/src/duke3d.h: TICRATE=120, TICSPERFRAME=4 fixed under DUKE13D.
 - Trace 73ab8a (older build, 13 columns/player) is identical to 9766d4: the simulation is reproducible.  A line-of-fire
   search around Player 2's chaingun burst at 32.6 s finds no time shift of our Player 1 that lines up -> the DOS
   difference is spatial (Player 2's own path), not a lag.
+  
+## ROUND 13
+- This patch addresses a specific class of demo-divergence risks: multiple `TRAND`/`krand()` calls embedded in C function arguments or in a single expression. C does not define a general left-to-right evaluation order for function arguments, and the order of the operands of ordinary arithmetic expressions is also not generally specified. A different compiler (or optimization level) can therefore consume the random stream in a different order.
+- **`Game/src/player.c`**: corrected `weapon_sprites` to match the recovered 1.3D initializer. The tenth entry is `FREEZEBLAST`, the eleventh is `HEAVYHBOMB`, and the twelfth element is left zero-initialized as in the reference (`MAX_WEAPONS` is 12 in this project).
+- **`Game/src/game.c`**: added small randomized-scrap helpers which explicitly consume random values in the order used by the recovered 1.3D executable. The helpers cover the common `RANDOMSCRAP`, `SCRAP6`, `SCRAP3`, and `SCRAP1` patterns. Glass-fragment spawns were also rewritten to capture random values before calling `EGS`.
+- **`Game/src/actors.c` and `Game/src/sector.c`**: migrated the matching scrap, glass, and loot spawns to explicit temporaries/helpers. The two `cansee()` calls with random values in both Z arguments now compute the target Z first, then the source Z, matching right-to-left argument evaluation.
+- **`Game/src/gamedef.c`**: serialized the random values used in its two multi-random `EGS()` calls.
+- **`Game/src/player.c`**: serialized the two `TRAND` draws in the `dead_flag` arithmetic expression in source order. This avoids relying on the compiler's operand evaluation order. The available recovered assembly did not include a corresponding disassembly of this player-code expression, so its original DOS draw order is not independently confirmed here; it should be checked against the project's known demo tests.
+- **`Game/src/duke3d.h` / `Game/src/funct.h`**: replaced the multi-random `RANDOMSCRAP` macro body with a helper call and declared the helpers.  
+- The recovered 1.3D `GAME.S` includes the `vglass_` implementation. Its `krand_` calls show the argument-side random values being evaluated from the last `EGS()` argument back towards the first. The existing 1.3D `vglass()` special case in this project already follows that order. The new EGS helpers and argument rewrites use the same order: last argument first, continuing right-to-left.
+
+This is stronger evidence than assuming the behavior of Visual Studio, MinGW, GCC, or another compiler. It is an observation from the recovered 1.3D executable's assembly for the corresponding code path.
+
+- No `hitradius()` change was made. The project's 1.3D branch already contains:
+
+```c
+if(s->picnum == RPG && s->xrepeat < 11) goto SKIPWALLCHECK;
+```
+
+That line is also present in the recovered 1.3D source. The suggested additional `sect = (s->picnum == RPG || s->picnum == FIREEXT) ? i : -1;` assignment was not found in the recovered 1.3D implementation, so it was not added.

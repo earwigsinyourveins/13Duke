@@ -1707,8 +1707,7 @@ void checkhitwall(short spr,short dawallnum,long x,long y,long z,short atwith)
             wal->cstat &= 65535-65;
             s = &sprite[spr];
             for(j=0;j<16;j++)
-                EGS(s->sectnum,s->x,s->y,s->z-(12<<8),SCRAP6+(TRAND&15),
-                    -8,48,48,TRAND&2047,(TRAND&63)+64,-512-(TRAND&2047),i,5);
+                spawnrandomscrap6(s->sectnum,s->x,s->y,s->z,i);
             return;
 #else
         case FANSPRITE:
@@ -2159,7 +2158,7 @@ void checkhitsprite(short i,short sn)
                 case HEAVYHBOMB:
                     for(k=0;k<64;k++)
                     {
-                        j = EGS(SECT,SX,SY,SZ-(TRAND%(48<<8)),SCRAP3+(TRAND&3),-8,48,48,TRAND&2047,(TRAND&63)+64,-(TRAND&4095)-(sprite[i].zvel>>2),i,5);
+                        j = spawnrandomscrap3(SECT,SX,SY,SZ,i,sprite[i].zvel,1);
                         sprite[j].pal = 8;
                     }
 
@@ -2180,7 +2179,7 @@ case HANGLIGHT:
         case GENERICPOLE2:
             for(k=0;k<6;k++)
 #endif // DUKE13D
-                EGS(SECT,SX,SY,SZ-(8<<8),SCRAP1+(TRAND&15),-8,48,48,TRAND&2047,(TRAND&63)+64,-(TRAND&4095)-(sprite[i].zvel>>2),i,5);
+                spawnrandomscrap1(SECT,SX,SY,SZ-(8<<8),i,48,sprite[i].zvel,0);
             spritesound(GLASS_HEAVYBREAK,i);
             deletesprite(i);
             break;
@@ -2196,8 +2195,7 @@ case HANGLIGHT:
 #if DUKE13D
 s = &sprite[i];
             for(j=0;j<16;j++)
-                EGS(s->sectnum,s->x,s->y,s->z-(12<<8),SCRAP6+(TRAND&15),
-                    -8,48,48,TRAND&2047,(TRAND&63)+64,-512-(TRAND&2047),i,5);
+                spawnrandomscrap6(s->sectnum,s->x,s->y,s->z,i);
             break;
         case WATERFOUNTAIN:
 #else
@@ -2221,8 +2219,7 @@ s = &sprite[i];
             if(sprite[sn].extra != *actorscrptr[SHOTSPARK1] )
             {
                 for(j=0;j<15;j++)
-                    EGS(SECT,SX,SY,sector[SECT].floorz-(12<<8)-(j<<9),SCRAP1+(TRAND&15),-8,64,64,
-                        TRAND&2047,(TRAND&127)+64,-(TRAND&511)-256,i,5);
+                    spawnrandomscrap1(SECT,SX,SY,sector[SECT].floorz-(12<<8)-(j<<9),i,64,0,1);
                 spawn(i,EXPLOSION2);
                 deletesprite(i);
             }
@@ -2446,8 +2443,7 @@ case POT3:
             spritesound(GLASS_HEAVYBREAK,i);
             s = &sprite[i];
             for(j=0;j<16;j++)
-                EGS(s->sectnum,s->x,s->y,s->z-(12<<8),SCRAP6+(TRAND&15),
-                    -8,48,48,TRAND&2047,(TRAND&63)+64,-512-(TRAND&2047),i,5);
+                spawnrandomscrap6(s->sectnum,s->x,s->y,s->z,i);
             deletesprite(i);
             break;
         case CLOCK:

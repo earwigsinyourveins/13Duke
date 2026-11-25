@@ -12649,6 +12649,71 @@ void cameratext(short i)
     }
 }
 
+/*
+ * Randomized EGS helpers preserve the original DOS executable's argument
+ * evaluation order.  The recovered Watcom assembly evaluates function
+ * arguments right-to-left; C itself does not require that order.  Capture
+ * each random value in that order before calling EGS so GCC, MSVC and other
+ * compilers produce the same simulation results.
+ */
+short spawnrandomscrap(spritetype *s,short owner)
+{
+    long x,y,z,zvel;
+    short pic,ang,xvel;
+
+    zvel = -512-(TRAND&2047);
+    xvel = (TRAND&63)+64;
+    ang = TRAND&2047;
+    pic = SCRAP6+(TRAND&15);
+    z = s->z-(8<<8)-(TRAND&8191);
+    y = s->y+(TRAND&255)-128;
+    x = s->x+(TRAND&255)-128;
+
+    return EGS(s->sectnum,x,y,z,pic,-8,48,48,ang,xvel,zvel,owner,5);
+}
+
+short spawnrandomscrap6(short sect,long x,long y,long z,short owner)
+{
+    long zvel;
+    short pic,ang,xvel;
+
+    zvel = -512-(TRAND&2047);
+    xvel = (TRAND&63)+64;
+    ang = TRAND&2047;
+    pic = SCRAP6+(TRAND&15);
+
+    return EGS(sect,x,y,z-(12<<8),pic,-8,48,48,ang,xvel,zvel,owner,5);
+}
+
+/* randomz selects the FIREEXT/CACTUS form whose Z coordinate is randomized. */
+short spawnrandomscrap3(short sect,long x,long y,long z,short owner,long ownerzvel,short randomz)
+{
+    long zvel;
+    short pic,ang,xvel;
+
+    zvel = -(TRAND&4095)-(ownerzvel>>2);
+    xvel = (TRAND&63)+64;
+    ang = TRAND&2047;
+    pic = SCRAP3+(TRAND&3);
+    if(randomz) z -= TRAND%(48<<8);
+
+    return EGS(sect,x,y,z,pic,-8,48,48,ang,xvel,zvel,owner,5);
+}
+
+short spawnrandomscrap1(short sect,long x,long y,long z,short owner,signed char repeat,long ownerzvel,short zvelmode)
+{
+    long zvel;
+    short pic,ang,xvel;
+
+    if(zvelmode) zvel = -(TRAND&511)-256;
+    else zvel = -(TRAND&4095)-(ownerzvel>>2);
+    xvel = (TRAND&63)+64;
+    ang = TRAND&2047;
+    pic = SCRAP1+(TRAND&15);
+
+    return EGS(sect,x,y,z,pic,-8,repeat,repeat,ang,xvel,zvel,owner,5);
+}
+
 // 1.3d: 1.3D wall-glass spawn: 3 TRAND per piece, fixed order, no z jitter
 #if DUKE13D
 void vglass(long x,long y,short a,short wn,short n)
@@ -12680,7 +12745,16 @@ void vglass(long x,long y,short a,short wn,short n)
     zincs = ( sector[sect].floorz-sector[sect].ceilingz ) / n;
 
     for(z = sector[sect].ceilingz;z < sector[sect].floorz; z += zincs )
-        EGS(sect,x,y,z-(TRAND&8191),GLASSPIECES+(z&(TRAND%3)),-32,36,36,a+128-(TRAND&255),16+(TRAND&31),0,-1,5);
+    {
+        short xvel,ang,pic;
+        long zpos;
+
+        xvel = 16+(TRAND&31);
+        ang = a+128-(TRAND&255);
+        pic = GLASSPIECES+(z&(TRAND%3));
+        zpos = z-(TRAND&8191);
+        EGS(sect,x,y,zpos,pic,-32,36,36,ang,xvel,0,-1,5);
+    }
 }
 #endif // DUKE13D
 
@@ -12698,8 +12772,12 @@ void lotsofglass(short i,short wallnum,short n)
      {
         for(j=n-1; j >= 0 ;j--)
         {
+            short xvel;
+            long zvel;
             a = SA-256+(TRAND&511)+1024;
-            EGS(SECT,SX,SY,SZ,GLASSPIECES+(j%3),-32,36,36,a,32+(TRAND&63),1024-(TRAND&1023),i,5);
+            zvel = 1024-(TRAND&1023);
+            xvel = 32+(TRAND&63);
+            EGS(SECT,SX,SY,SZ,GLASSPIECES+(j%3),-32,36,36,a,xvel,zvel,i,5);
         }
         return;
      }
@@ -12730,7 +12808,11 @@ void lotsofglass(short i,short wallnum,short n)
               if( z < -(32<<8) || z > (32<<8) )
                   z = SZ-(32<<8)+(TRAND&((64<<8)-1));
               a = SA-1024;
-              EGS(SECT,x1,y1,z,GLASSPIECES+(j%3),-32,36,36,a,32+(TRAND&63),-(TRAND&1023),i,5);
+              {
+                  long zvel = -(TRAND&1023);
+                  short xvel = 32+(TRAND&63);
+                  EGS(SECT,x1,y1,z,GLASSPIECES+(j%3),-32,36,36,a,xvel,zvel,i,5);
+              }
           }
          }
 }
@@ -12746,7 +12828,12 @@ void spriteglass(short i,short n)
     {
         a = TRAND&2047;
         z = SZ-((TRAND&16)<<8);
-        k = EGS(SECT,SX,SY,z,GLASSPIECES+(j%3),TRAND&15,36,36,a,32+(TRAND&63),-512-(TRAND&2047),i,5);
+        {
+            long zvel = -512-(TRAND&2047);
+            short xvel = 32+(TRAND&63);
+            signed char shade = (signed char)(TRAND&15);
+            k = EGS(SECT,SX,SY,z,GLASSPIECES+(j%3),shade,36,36,a,xvel,zvel,i,5);
+        }
         sprite[k].pal = sprite[i].pal;
     }
 }
@@ -12796,7 +12883,12 @@ void lotsofcolourglass(short i,short wallnum,short n)
         for(j=n-1; j >= 0 ;j--)
         {
             a = TRAND&2047;
-            k = EGS(SECT,SX,SY,SZ-(TRAND&(63<<8)),GLASSPIECES+(j%3),-32,36,36,a,32+(TRAND&63),1024-(TRAND&2047),i,5);
+            {
+                long zvel = 1024-(TRAND&2047);
+                short xvel = 32+(TRAND&63);
+                long zpos = SZ-(TRAND&(63<<8));
+                k = EGS(SECT,SX,SY,zpos,GLASSPIECES+(j%3),-32,36,36,a,xvel,zvel,i,5);
+            }
             sprite[k].pal = TRAND&15;
         }
         return;
@@ -12819,7 +12911,11 @@ void lotsofcolourglass(short i,short wallnum,short n)
           if( z < -(32<<8) || z > (32<<8) )
               z = SZ-(32<<8)+(TRAND&((64<<8)-1));
           a = SA-1024;
-          k = EGS(SECT,x1,y1,z,GLASSPIECES+(j%3),-32,36,36,a,32+(TRAND&63),-(TRAND&2047),i,5);
+          {
+              long zvel = -(TRAND&2047);
+              short xvel = 32+(TRAND&63);
+              k = EGS(SECT,x1,y1,z,GLASSPIECES+(j%3),-32,36,36,a,xvel,zvel,i,5);
+          }
           sprite[k].pal = TRAND&7;
          }
 }

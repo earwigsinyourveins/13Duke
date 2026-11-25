@@ -143,7 +143,12 @@ void tracers(long x1,long y1,long z1,long x2,long y2,long z2,long n)
           if(sect >= 0)
           {
               if(sector[sect].lotag == 2)
-                  EGS(sect,x1,y1,z1,WATERBUBBLE,-32,4+(TRAND&3),4+(TRAND&3),TRAND&2047,0,0,ps[0].i,5);
+                  {
+                      short ang = TRAND&2047;
+                      signed char yrepeat = 4+(TRAND&3);
+                      signed char xrepeat = 4+(TRAND&3);
+                      EGS(sect,x1,y1,z1,WATERBUBBLE,-32,xrepeat,yrepeat,ang,0,0,ps[0].i,5);
+                  }
               else
                   EGS(sect,x1,y1,z1,SMALLSMOKE,-32,14,14,0,0,0,ps[0].i,5);
           }
@@ -3131,7 +3136,7 @@ char doincrements(struct player_struct *p)
 
 short weapon_sprites[MAX_WEAPONS] = { KNEE, FIRSTGUNSPRITE, SHOTGUNSPRITE,
         CHAINGUNSPRITE, RPGSPRITE, HEAVYHBOMB, SHRINKERSPRITE, DEVISTATORSPRITE,
-        TRIPBOMBSPRITE, FREEZESPRITE, HEAVYHBOMB, SHRINKERSPRITE};
+        TRIPBOMBSPRITE, FREEZEBLAST, HEAVYHBOMB};
 
 void checkweapons(struct player_struct *p)
 {
@@ -3403,7 +3408,12 @@ void processinput(short snum)
                 closedemowrite();
 
             if(s->pal != 1)
-                p->dead_flag = (512-((TRAND&1)<<10)+(TRAND&255)-512)&2047;
+            {
+                /* Preserve the source expression's left-to-right random draws. */
+                short deadflagbit = TRAND&1;
+                short deadflagjitter = TRAND&255;
+                p->dead_flag = (512-(deadflagbit<<10)+deadflagjitter-512)&2047;
+            }
 
             p->jetpack_on = 0;
             p->holoduke_on = -1;
@@ -5063,7 +5073,12 @@ void processinput(short snum)
                 closedemowrite();
 
             if(s->pal != 1)
-                p->dead_flag = (512-((TRAND&1)<<10)+(TRAND&255)-512)&2047;
+            {
+                /* Preserve the source expression's left-to-right random draws. */
+                short deadflagbit = TRAND&1;
+                short deadflagjitter = TRAND&255;
+                p->dead_flag = (512-(deadflagbit<<10)+deadflagjitter-512)&2047;
+            }
 
             p->jetpack_on = 0;
             p->holoduke_on = -1;
