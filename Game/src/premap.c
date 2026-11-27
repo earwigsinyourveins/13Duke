@@ -1655,7 +1655,17 @@ void enterlevel(char g)
 
 if (!VOLUMEONE)
 {
-    if( boardfilename[0] != 0 && ud.m_level_number == 7 && ud.m_volume_number == 0 )
+    // 13d sidecar: demo recorded on E1L8 (user map placeholder) with a map next to the .dmo
+    if( demomapfile[0] != 0 && (g&MODE_DEMO) == MODE_DEMO && ud.volume_number == 0 && ud.level_number == 7 )
+    {
+        printf("Loading demo map %s\n", demomapfile);
+        if ( loadboard( demomapfile,&ps[0].posx, &ps[0].posy, &ps[0].posz, &ps[0].ang,&ps[0].cursectnum ) == -1 )
+        {
+            sprintf(tempbuf,"Demo map %s could not be loaded!\n",demomapfile);
+            gameexit(tempbuf);
+        }
+    }
+    else if( boardfilename[0] != 0 && ud.m_level_number == 7 && ud.m_volume_number == 0 )
     {
 		sprintf(fulllevelfilename, "%s\\%s",  game_dir, boardfilename);
 		if(!SafeFileExists(fulllevelfilename))

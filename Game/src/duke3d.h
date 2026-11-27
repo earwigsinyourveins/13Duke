@@ -626,6 +626,7 @@ extern char restorepalette;
 
 extern short buttonstat;
 extern long cachecount;
+extern char demomapfile[512]; // 13d sidecar demo map (full path), see opendemoread()
 extern char boardfilename[128],waterpal[768],slimepal[768],titlepal[768],drealms[768],endingpal[768];
 extern char betaname[80];
 extern char cachedebug,earthquaketime;

@@ -85,8 +85,9 @@ int32 CommandMusicToggleOff = 0;
 unsigned short g_bStun = 0;
 
 char confilename[128] = {"GAME.CON"},boardfilename[128] = {0};
+char demomapfile[512] = {0}; // 13d sidecar: full path of the map to load instead of E1L8 during demo playback
 char waterpal[768], slimepal[768], titlepal[768], drealms[768], endingpal[768];
-char firstdemofile[80] = { '\0' };
+char firstdemofile[512] = { '\0' }; // full paths from drag-n-drop don't fit in 80
 
 #define patchstatusbar(x1,y1,x2,y2)                                        \
 {                                                                          \
@@ -8805,6 +8806,91 @@ void nonsharedkeys(void)
 
 
 
+// Drag-n-drop support: Explorer launches "13duke.exe "C:\path\some demo.dmo"",
+// i.e. the demo shows up as a bare argument with no /d switch.
+static int IsDemoFileArg(const char *s)
+{
+    size_t n;
+
+    if(s == NULL || *s == '\0' || *s == '-' || *s == '/' || *s == '?')
+        return 0;
+
+    n = strlen(s);
+    return (n > 4 && stricmp(s + n - 4, ".dmo") == 0);
+}
+
+// Stores the demo name into firstdemofile (bounds checked).
+// For a dropped file the path is made absolute so it survives any later
+// working directory change and works wherever Explorer starts us from.
+static void SetFirstDemoFile(const char *name, int fromDrop)
+{
+    char tmp[512];
+    const char *base, *p;
+
+    if(strlen(name) + 5 > sizeof(tmp))   // room for ".dmo" + NUL
+    {
+        printf("Demo file name is too long: %s\n", name);
+        return;
+    }
+    strcpy(tmp, name);
+
+    // Append .dmo when the file name itself (not a folder) has no extension.
+    base = tmp;
+    for(p = tmp; *p; p++)
+        if(*p == '\\' || *p == '/' || *p == ':')
+            base = p + 1;
+    if(strchr(base, '.') == NULL)
+        strcat(tmp, ".dmo");
+
+    if(fromDrop)
+    {
+        char full[512];
+        DWORD len = GetFullPathNameA(tmp, sizeof(full), full, NULL);
+        if(len > 0 && len < sizeof(full))
+            strcpy(tmp, full);
+    }
+
+    strcpy(firstdemofile, tmp);   // sizeof(tmp) == sizeof(firstdemofile)
+    printf("Play demo %s.\n", firstdemofile);
+}
+
+// Drag-n-drop launch handling. Must run first thing in main(): Explorer may start
+// us with the working directory set to the demo's folder, and the GRP, CON,
+// config etc. are all loaded relative to the working directory.
+// If any bare *.dmo argument is present: make the dropped path(s) and argv[0]
+// absolute, then switch the working directory to the exe's own folder.
+static void PrepareDropLaunch(int argc, char **argv)
+{
+    char full[512], exepath[MAX_PATH], *slash, *dup;
+    int i, drop = 0;
+
+    for(i = 1; i < argc; i++)
+        if(IsDemoFileArg(argv[i])) { drop = 1; break; }
+    if(!drop)
+        return;
+
+    for(i = 1; i < argc; i++)
+    {
+        if(!IsDemoFileArg(argv[i]))
+            continue;
+        if(GetFullPathNameA(argv[i], sizeof(full), full, NULL) > 0 && strlen(full) < sizeof(full)
+           && (dup = strdup(full)) != NULL)
+            argv[i] = dup;
+    }
+
+    if(GetModuleFileNameA(NULL, exepath, sizeof(exepath)) == 0)
+        return;
+    if((dup = strdup(exepath)) != NULL)
+        argv[0] = dup;               // keeps the exe-CRC code working after the chdir
+
+    slash = strrchr(exepath, '\\');
+    if(slash != NULL)
+    {
+        *slash = '\0';
+        SetCurrentDirectoryA(exepath);
+    }
+}
+
 void comlinehelp(char **argv)
 {
     printf("Command line help.  %s [/flags...]\n",argv[0]);
@@ -8814,6 +8900,7 @@ void comlinehelp(char **argv)
     puts(" /s#           Skill (1-4)");
     puts(" /r            Record demo");
     puts(" /dFILE        Start to play demo FILE");
+    puts("               (or drag-n-drop a .dmo file onto the exe)");
     puts(" /m            No monsters");
     puts(" /ns           No sound");
     puts(" /nm           No music");
@@ -8897,6 +8984,16 @@ void checkcommandline(int argc,char **argv)
 				g_bStun = 1;
 
 				i++;
+                continue;
+            }
+
+            // Drag-n-drop: a bare *.dmo argument is the same as /d<file>.
+            // An explicit /d on the command line always takes precedence.
+            if (IsDemoFileArg(c))
+            {
+                if (firstdemofile[0] == '\0')
+                    SetFirstDemoFile(c, 1);
+                i++;
                 continue;
             }
 
@@ -9108,10 +9205,7 @@ if (!DUKE13D && stricmp(c, "/disableautoaim") == 0)
                     case 'd':
                     case 'D':
                         c++;
-                        if( strchr(c,'.') == 0)
-                            strcat(c,".dmo");
-                        printf("Play demo %s.\n",c);
-                        strcpy(firstdemofile,c);
+                        SetFirstDemoFile(c, 0);
                         break;
                     case 'l':
                     case 'L':
@@ -10003,6 +10097,8 @@ int main(int argc,char **argv)
 	//		"using it as it may contain new unsuspected bugs. Only a select\n"
 	//		"group of known dukers who know what they are doing should be using\n"
 	//		"it. Please report new bugs at xd@m-klein.com or on DX forums. Thx!\n\n");
+	PrepareDropLaunch(argc, argv);
+
 	if(XDUKE_SUBVERSION)
 		printf("*** 13Duke v%d.%d ***\n\n", XDUKE_REV_X, XDUKE_REV_DOT_Y,XDUKE_SUBVERSION);
 	else
@@ -10553,6 +10649,168 @@ if ( groupefil_crc32[0]==CRC_BASE_GRP_SHAREWARE_13 ||
 static void Duke13D_TraceReset(void);
 #endif
 
+#if DUKE13D
+// ---------------------------------------------------------------------------
+// 13d sidecar file: <demo name>.13d next to the .dmo
+//
+//   P1: Player1        (P1..P8, names are uppercased and cut to 10 chars,
+//   P2: Player2         the fragbar field limit)
+//   ...
+//   ---
+//   MAP: IOD2          (user map for demos recorded on E1L8, i.e. the
+//                       user map placeholder; looked up as IOD2.MAP in the
+//                       demo's folder, then as E1L8.MAP in the demo's folder)
+//
+// Unknown lines are ignored. Without a sidecar nothing changes.
+// ---------------------------------------------------------------------------
+#define DEMO13D_MAXPLAYERS 8   // 1.3D supports 8 players max
+
+static int Demo13d_FileReadable(const char *path)
+{
+    FILE *f = fopen(path, "rb");
+    if(f == NULL)
+        return 0;
+    fclose(f);
+    return 1;
+}
+
+static void Demo13d_Trim(char *s)
+{
+    char *a = s, *e;
+    size_t n;
+
+    while(*a == ' ' || *a == '\t') a++;
+    if(a != s) memmove(s, a, strlen(a) + 1);
+    n = strlen(s);
+    e = s + n;
+    while(e > s && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\r' || e[-1] == '\n'))
+        *--e = '\0';
+}
+
+// demopath: the .dmo path as it was opened (relative or absolute).
+static void Demo13d_ApplySidecar(const char *demopath)
+{
+    char dir[512], sidecar[512 + 8], line[256], key[256], *val, *colon, *dot;
+    char mapname[128], names[MAXPLAYERS][32], cand[1024];
+    int have[MAXPLAYERS], anyname = 0, first = 1, i, n, k, digits;
+    const char *p, *sep = NULL;
+    FILE *f;
+
+    if(strlen(demopath) >= 512)
+        return;
+
+    for(p = demopath; *p; p++)
+        if(*p == '\\' || *p == '/' || *p == ':')
+            sep = p + 1;
+    n = sep ? (int)(sep - demopath) : 0;
+    memcpy(dir, demopath, n);
+    dir[n] = '\0';
+
+    strcpy(sidecar, demopath);
+    dot = strrchr(sidecar + n, '.');
+    if(dot) *dot = '\0';
+    strcat(sidecar, ".13d");
+
+    f = fopen(sidecar, "r");
+    if(f == NULL)
+        return;
+
+    memset(have, 0, sizeof(have));
+    memset(names, 0, sizeof(names));
+    mapname[0] = '\0';
+
+    while(fgets(line, sizeof(line), f))
+    {
+        char *s = line;
+
+        if(first)
+        {
+            first = 0;
+            if((unsigned char)s[0] == 0xEF && (unsigned char)s[1] == 0xBB && (unsigned char)s[2] == 0xBF)
+                s += 3;    // UTF-8 BOM
+        }
+        Demo13d_Trim(s);
+        if(*s == '\0' || strncmp(s, "---", 3) == 0)
+            continue;
+
+        colon = strchr(s, ':');
+        if(colon == NULL)
+            continue;
+        *colon = '\0';
+        strcpy(key, s);
+        val = colon + 1;
+        Demo13d_Trim(key);
+        Demo13d_Trim(val);
+        if(*val == '\0')
+            continue;
+
+        if((key[0] == 'P' || key[0] == 'p') && key[1] != '\0')
+        {
+            for(digits = 1, k = 1; key[k]; k++)
+                if(key[k] < '0' || key[k] > '9') { digits = 0; break; }
+            n = digits ? atoi(key + 1) : 0;
+            if(n >= 1 && n <= DEMO13D_MAXPLAYERS)
+            {
+                // FIX_00031: names are limited to 10 chars (fragbar field limit)
+                for(k = 0; k < 10 && val[k]; k++)
+                    names[n-1][k] = (char)toupper((unsigned char)val[k]);
+                names[n-1][k] = '\0';
+                have[n-1] = 1;
+                anyname = 1;
+            }
+        }
+        else if(stricmp(key, "MAP") == 0)
+        {
+            strncpy(mapname, val, sizeof(mapname) - 1);
+            mapname[sizeof(mapname) - 1] = '\0';
+        }
+    }
+    fclose(f);
+
+    printf("Using sidecar %s\n", sidecar);
+
+    if(anyname)
+    {
+        for(i = 0; i < MAXPLAYERS; i++)
+        {
+            memset(ud.user_name[i], 0, sizeof(ud.user_name[i]));
+            if(have[i])
+                strcpy(ud.user_name[i], names[i]);
+        }
+    }
+
+    // User map: only for demos whose header says E1L8 (the user map placeholder).
+    // Any other level in the header is loaded the regular way.
+    if(ud.volume_number != 0 || ud.level_number != 7)
+        return;
+
+    if(mapname[0] != '\0')
+    {
+        size_t l = strlen(mapname);
+        if(l > 4 && stricmp(mapname + l - 4, ".map") == 0)
+            mapname[l - 4] = '\0';
+        if(strlen(dir) + strlen(mapname) + 5 < sizeof(cand))
+        {
+            sprintf(cand, "%s%s.MAP", dir, mapname);
+            if(Demo13d_FileReadable(cand))
+                strcpy(demomapfile, cand);
+        }
+    }
+
+    if(demomapfile[0] == '\0')
+    {
+        sprintf(cand, "%se1l8.map", dir);
+        if(Demo13d_FileReadable(cand))
+            strcpy(demomapfile, cand);
+    }
+
+    if(demomapfile[0] != '\0')
+        printf("Demo map: %s\n", demomapfile);
+    else
+        printf("Demo map: %s not found, using default E1L8\n", mapname[0] ? mapname : "(none)");
+}
+#endif // DUKE13D
+
 char opendemoread(char which_demo) // 0 = mine
 {
 #if DUKE13D
@@ -10572,6 +10830,7 @@ char opendemoread(char which_demo) // 0 = mine
         d[4] = '0' + which_demo;
 
     ud.reccnt = 0;
+    demomapfile[0] = 0;
 
      if(which_demo == 1 && firstdemofile[0] != 0)
      {
@@ -10612,6 +10871,21 @@ char opendemoread(char which_demo) // 0 = mine
      ud.god = ud.cashman = ud.eog = ud.showallmap = 0;
      ud.clipping = ud.scrollmode = ud.overhead_on = 0;
      ud.pause_on = 0;
+     /* 13d sidecar: player names + user map for E1L8 demos */
+     {
+         char sidecarbase[512];
+         if(which_demo == 1 && firstdemofile[0] != 0)
+             strcpy(sidecarbase, firstdemofile);
+         else if(game_dir[0] != 0 && strlen(game_dir) + strlen(d) + 2 <= sizeof(sidecarbase))
+         {
+             sprintf(sidecarbase, "%s\\%s", game_dir, d);
+             if(!Demo13d_FileReadable(sidecarbase))
+                 strcpy(sidecarbase, d);
+         }
+         else
+             strcpy(sidecarbase, d);
+         Demo13d_ApplySidecar(sidecarbase);
+     }
 #else
      kread(recfilep,&ud.reccnt,sizeof(long));
      kread(recfilep,&ver,sizeof(char));
