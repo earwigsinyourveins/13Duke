@@ -2786,7 +2786,7 @@ else
             onbar = 0;
 
             /* 1.3D: no autoaim and no weapon-switch options (both are always on) */
-            x = probe(c+6,43,16,6);
+            x = probe(c+6,43,16,7);
 
             switch(x)
             {
@@ -2810,7 +2810,10 @@ else
                 case 4:
                     g_demo_forced_cameras = !g_demo_forced_cameras; /* presentation only; takes effect immediately */
                     break;
-                case 5: // parental
+                case 5:
+                    g_scoreshot = !g_scoreshot; /* auto screenshot of the multiplayer scoreboard */
+                    break;
+                case 6: // parental
 #ifndef AUSTRALIA
                     cmenu(10000);
 #endif
@@ -2841,10 +2844,14 @@ else
             if(g_demo_forced_cameras) menutext(c+160+40,43+16*4,0,0,"ON");
             else menutext(c+160+40,43+16*4,0,0,"OFF");
 
+            menutext(c,43+16*5,SHX(-4),PHX(-4),"SCORE SHOT");
+            if(g_scoreshot) menutext(c+160+40,43+16*5,0,0,"ON");
+            else menutext(c+160+40,43+16*5,0,0,"OFF");
+
 #ifndef AUSTRALIA
-            menutext(c,43+16*5,SHX(-9),PHX(-9),"PARENTAL LOCK");
+            menutext(c,43+16*6,SHX(-9),PHX(-9),"PARENTAL LOCK");
 #else
-            menutext(c,43+16*5,SHX(-9),1,"PARENTAL LOCK");
+            menutext(c,43+16*6,SHX(-9),1,"PARENTAL LOCK");
 #endif
 
             break;

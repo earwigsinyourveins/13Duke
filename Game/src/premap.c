@@ -1632,6 +1632,12 @@ void enterlevel(char g)
 	KB_ClearKeyDown(sc_Pause); // avoid entering in pause mode.
 	
     if( (g&MODE_DEMO) != MODE_DEMO ) ud.recstat = ud.m_recstat;
+#if DUKE13D
+    // Multiplayer matches are always recorded (into DEMOS\, see opendemowrite/closedemowrite).
+    // Not on MODE_RESTART: no new file is opened then, so recording can't be (re)started.
+    if( (g&MODE_DEMO) != MODE_DEMO && (g&MODE_RESTART) != MODE_RESTART && numplayers > 1 )
+        ud.recstat = ud.m_recstat = 1;
+#endif
     ud.respawn_monsters = ud.m_respawn_monsters;
     ud.respawn_items    = ud.m_respawn_items;
     ud.respawn_inventory    = ud.m_respawn_inventory;

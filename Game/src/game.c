@@ -105,6 +105,7 @@ int recfilep,totalreccnt;
    option is 0 the SE27 effector is skipped during demo playback (see actors.c), so ud.camerasprite stays -1 and the
    normal first-person view (weapon included) is shown.  Gameplay is unaffected: SE27 writes only its own sprite. */
 int32 g_demo_forced_cameras = 1;   /* menu option "DEMO CAMERAS" / config "Misc.DemoCameras" */
+int32 g_scoreshot = 1;             /* menu option "SCORE SHOT" / config "Misc.ScoreShot": auto screenshot of the MP scoreboard */
 #define VIEWCAM() (ud.camerasprite)   /* cameras are switched off by skipping SE27 in moveeffectors (actors.c) */
 #else
 #define VIEWCAM() (ud.camerasprite)
@@ -8816,7 +8817,7 @@ static int IsDemoFileArg(const char *s)
         return 0;
 
     n = strlen(s);
-    return (n > 4 && stricmp(s + n - 4, ".dmo") == 0);
+    return (n > 4 && (stricmp(s + n - 4, ".dmo") == 0 || stricmp(s + n - 4, ".13d") == 0));
 }
 
 // Stores the demo name into firstdemofile (bounds checked).
@@ -8826,6 +8827,8 @@ static void SetFirstDemoFile(const char *name, int fromDrop)
 {
     char tmp[512];
     const char *base, *p;
+    size_t n;
+    int from13d = 0;
 
     if(strlen(name) + 5 > sizeof(tmp))   // room for ".dmo" + NUL
     {
@@ -8833,6 +8836,14 @@ static void SetFirstDemoFile(const char *name, int fromDrop)
         return;
     }
     strcpy(tmp, name);
+
+    // A .13d sidecar stands for the .dmo with the same name (same folder).
+    n = strlen(tmp);
+    if(n > 4 && stricmp(tmp + n - 4, ".13d") == 0)
+    {
+        strcpy(tmp + n - 4, ".dmo");
+        from13d = 1;
+    }
 
     // Append .dmo when the file name itself (not a folder) has no extension.
     base = tmp;
@@ -8848,6 +8859,17 @@ static void SetFirstDemoFile(const char *name, int fromDrop)
         DWORD len = GetFullPathNameA(tmp, sizeof(full), full, NULL);
         if(len > 0 && len < sizeof(full))
             strcpy(tmp, full);
+
+        if(from13d)   // dropped sidecar: its demo must be next to it
+        {
+            FILE *chk = fopen(tmp, "rb");
+            if(chk == NULL)
+            {
+                printf("Demo file %s not found (needed by the dropped .13d).\n", tmp);
+                return;
+            }
+            fclose(chk);
+        }
     }
 
     strcpy(firstdemofile, tmp);   // sizeof(tmp) == sizeof(firstdemofile)
@@ -8857,7 +8879,7 @@ static void SetFirstDemoFile(const char *name, int fromDrop)
 // Drag-n-drop launch handling. Must run first thing in main(): Explorer may start
 // us with the working directory set to the demo's folder, and the GRP, CON,
 // config etc. are all loaded relative to the working directory.
-// If any bare *.dmo argument is present: make the dropped path(s) and argv[0]
+// If any bare *.dmo / *.13d argument is present: make the dropped path(s) and argv[0]
 // absolute, then switch the working directory to the exe's own folder.
 static void PrepareDropLaunch(int argc, char **argv)
 {
@@ -8900,7 +8922,7 @@ void comlinehelp(char **argv)
     puts(" /s#           Skill (1-4)");
     puts(" /r            Record demo");
     puts(" /dFILE        Start to play demo FILE");
-    puts("               (or drag-n-drop a .dmo file onto the exe)");
+    puts("               (or drag-n-drop a .dmo or .13d file onto the exe)");
     puts(" /m            No monsters");
     puts(" /ns           No sound");
     puts(" /nm           No music");
@@ -8987,7 +9009,7 @@ void checkcommandline(int argc,char **argv)
                 continue;
             }
 
-            // Drag-n-drop: a bare *.dmo argument is the same as /d<file>.
+            // Drag-n-drop: a bare *.dmo (or its *.13d sidecar) argument is the same as /d<file>.
             // An explicit /d on the command line always takes precedence.
             if (IsDemoFileArg(c))
             {
@@ -10979,6 +11001,223 @@ char opendemoread(char which_demo) // 0 = mine
 }
 
 
+// Name of the map of the current match (no path, no extension): the user map name (E1L8 placeholder
+// + boardfilename, or the sidecar map while a demo plays), otherwise the level file name (E1L1...).
+// Uses ud.last_level-1 (the level that was played) because ud.level_number may already be the next
+// one when the scoreboard is shown. Returns 1 if it is a user map, 0 otherwise.
+static int GetMatchMapName(char *out, size_t outsize)
+{
+    const char *src = NULL, *p, *base;
+    char tmp[128], *dot;
+    int lvl, user = 0;
+
+    lvl = (ud.last_level > 0) ? ud.last_level - 1 : ud.level_number;
+
+    if(ud.recstat == 2 && demomapfile[0] != 0)
+    {
+        src = demomapfile;
+        user = 1;
+    }
+    else if(ud.recstat != 2 && boardfilename[0] != 0 && ud.volume_number == 0 && lvl == 7)
+    {
+        src = boardfilename;
+        user = 1;
+    }
+    else if(ud.volume_number >= 0 && ud.volume_number < 4 && lvl >= 0 && lvl < 11
+            && level_file_names[ud.volume_number*11 + lvl][0] != 0)
+        src = level_file_names[ud.volume_number*11 + lvl];
+
+    if(src == NULL)
+    {
+        sprintf(tmp, "E%dL%d", ud.volume_number + 1, lvl + 1);
+    }
+    else
+    {
+        base = src;
+        for(p = src; *p; p++)
+            if(*p == '\\' || *p == '/' || *p == ':')
+                base = p + 1;
+        strncpy(tmp, base, sizeof(tmp) - 1);
+        tmp[sizeof(tmp) - 1] = '\0';
+        dot = strrchr(tmp, '.');
+        if(dot != NULL)
+            *dot = '\0';
+    }
+
+    strncpy(out, tmp, outsize - 1);
+    out[outsize - 1] = '\0';
+    return user;
+}
+
+// Match file name shared by screenshots and auto-recorded multiplayer demos (+ .13d sidecars):
+//   13Duke(v13.2) 2026.11.27 14h16m17s [HOLLYWOOD(0) vs KGOAT(0) vs VERGE(0) vs HAFIZ(0)]E1L1
+// (no extension). Players, scores and map are the ones at the time of the call.
+static void BuildMatchFileName(char *out, size_t outsize)
+{
+    char buf[1024], score[20], nm[40], mapn[128];
+    time_t time4file;
+    struct tm *tmHMS;
+    int i, k, added = 0;
+
+    // xduke: Build a nice name w/ date and players name if in multi mode.
+    time(&time4file);
+    tmHMS = localtime(&time4file);
+
+    sprintf(buf, "13Duke(v%d.%d) %.4d.%.2d.%.2d %.2dh%.2dm%.2ds",
+            XDUKE_REV_X,
+            XDUKE_REV_DOT_Y,
+            tmHMS->tm_year+1900,
+            tmHMS->tm_mon+1,
+            tmHMS->tm_mday,
+            tmHMS->tm_hour,
+            tmHMS->tm_min,
+            tmHMS->tm_sec);
+
+    if(ud.multimode>1) // if more than 1 player, we add name. Then add score if DM
+    {
+        strcat(buf, " [");
+        for(i=connecthead;i>=0;i=connectpoint2[i])
+        {
+            if(strlen(buf) > 900)
+                break;
+
+            if(!ud.user_name[i][0])
+                strcat(buf, "NoName");
+            else
+            {
+                // keep characters Windows doesn't allow in file names out of the name
+                for(k=0; k<(int)sizeof(nm)-1 && ud.user_name[i][k]; k++)
+                {
+                    char c = ud.user_name[i][k];
+                    nm[k] = ((unsigned char)c < 32 || strchr("\\/:*?\"<>|", c)) ? '_' : c;
+                }
+                nm[k] = 0;
+                strcat(buf, nm);
+            }
+
+            if(ud.m_coop==0 || ud.m_coop==2)  // if DM or DM No spawn. Add Score as well
+            {
+                sprintf(score, "%d", (int)(ps[i].frag-ps[i].fraggedself));
+                strcat(buf, "(");
+                strcat(buf, score);
+                strcat(buf, ") vs ");
+            }
+            else
+                strcat(buf, " vs ");
+            added = 1;
+        }
+        if(added)
+            buf[strlen(buf)-4] = 0; // remove last vs
+        strcat(buf, "]");
+
+        // map name right after the closing bracket (illegal file name chars -> '_')
+        GetMatchMapName(mapn, sizeof(mapn));
+        for(k=0; mapn[k]; k++)
+            if((unsigned char)mapn[k] < 32 || strchr("\\/:*?\"<>|", mapn[k]))
+                mapn[k] = '_';
+        strcat(buf, mapn);
+    }
+
+    strncpy(out, buf, outsize-1);
+    out[outsize-1] = 0;
+}
+
+#if DUKE13D
+// Path of the file an auto-recorded multiplayer demo is written to while the match
+// runs; non-empty only while such a demo is open. closedemowrite() renames it to
+// its final name (BuildMatchFileName) and writes the .13d sidecar next to it.
+static char g_autoDemoTmp[512] = {0};
+
+// <demo>.dmo -> <demo>.13d : player names (position in the match) + user map name.
+static void WriteDemo13dSidecar(const char *dmopath)
+{
+    char path[1100], mapname[128];
+    FILE *f;
+    int i, pos = 0;
+    size_t n;
+
+    strcpy(path, dmopath);
+    n = strlen(path);
+    if(n > 4 && stricmp(path + n - 4, ".dmo") == 0)
+        path[n - 4] = '\0';
+    strcat(path, ".13d");
+
+    f = fopen(path, "w");
+    if(f == NULL)
+    {
+        printf("Can't write sidecar %s\n", path);
+        return;
+    }
+
+    for(i=connecthead;i>=0;i=connectpoint2[i])
+    {
+        pos++;
+        if(pos <= 8 && ud.user_name[i][0])
+            fprintf(f, "P%d: %s\n", pos, ud.user_name[i]);
+    }
+
+    // user map in use (E1L8 placeholder): MAP line without path / extension
+    if(GetMatchMapName(mapname, sizeof(mapname)))
+        fprintf(f, "---\nMAP: %s\n", mapname);
+
+    fclose(f);
+}
+
+static void FinishAutoDemo(void)
+{
+    char tmp[512], dir[512], name[1024], dmo[1600];
+    char *sep, *br;
+    int n;
+
+    if(g_autoDemoTmp[0] == '\0')
+        return;
+    strcpy(tmp, g_autoDemoTmp);
+    g_autoDemoTmp[0] = '\0';
+
+    if(totalreccnt == 0) // nothing was recorded (left right after it started)
+    {
+        remove(tmp);
+        return;
+    }
+
+    strcpy(dir, tmp);
+    sep = strrchr(dir, '\\');
+    if(strrchr(dir, '/') > sep) sep = strrchr(dir, '/');
+    if(sep != NULL) sep[1] = '\0'; else dir[0] = '\0';
+
+    BuildMatchFileName(name, sizeof(name));
+
+    for(n = 1; n < 100; n++)  // never overwrite an existing demo
+    {
+        if(n == 1) sprintf(dmo, "%s%s.dmo", dir, name);
+        else       sprintf(dmo, "%s%s (%d).dmo", dir, name, n);
+        if(!Demo13d_FileReadable(dmo))
+            break;
+    }
+
+    if(rename(tmp, dmo) != 0)
+    {
+        // most likely the path got too long: retry without the "[players]" part
+        br = strstr(name, " [");
+        if(br != NULL)
+        {
+            *br = '\0';
+            sprintf(dmo, "%s%s.dmo", dir, name);
+            for(n = 2; n < 100 && Demo13d_FileReadable(dmo); n++)
+                sprintf(dmo, "%s%s (%d).dmo", dir, name, n);
+        }
+        if(br == NULL || rename(tmp, dmo) != 0)
+        {
+            printf("Couldn't rename %s -> %s, demo left as %s\n", tmp, dmo, tmp);
+            return;
+        }
+    }
+
+    printf("Demo saved: %s\n", dmo);
+    WriteDemo13dSidecar(dmo);
+}
+#endif // DUKE13D
+
 void opendemowrite(void)
 {
 #if DUKE13D
@@ -10988,7 +11227,7 @@ void opendemowrite(void)
     long dummylong = 0;
     char ver;
     short i;
-	char fullpathdemofilename[16];
+	char fullpathdemofilename[512];
 
     if(ud.recstat == 2) kclose(recfilep);
 
@@ -11006,9 +11245,34 @@ void opendemowrite(void)
 		sprintf(fullpathdemofilename, "%s", d);
 	}
 
+#if DUKE13D
+    // Multiplayer: the match is auto-recorded into DEMOS\ . It is written to a temporary
+    // name and renamed at the end, when the final scores are known (closedemowrite).
+    g_autoDemoTmp[0] = '\0';
+    if(numplayers > 1)
+    {
+        char demodir[512];
+
+        if(game_dir[0] != '\0')
+            sprintf(demodir, "%s\\%s", game_dir, DEMOPATH);
+        else
+            strcpy(demodir, DEMOPATH);
+        mkdir(demodir);
+        sprintf(fullpathdemofilename, "%s\\_recording.dmo", demodir);
+        strcpy(g_autoDemoTmp, fullpathdemofilename);
+    }
+#endif
+
 // CTW - MODIFICATION
 //  if ((frecfilep = fopen(d,"wb")) == -1) return;
-    if ((frecfilep = fopen(fullpathdemofilename,"wb")) == NULL) return;
+    if ((frecfilep = fopen(fullpathdemofilename,"wb")) == NULL)
+    {
+#if DUKE13D
+        g_autoDemoTmp[0] = '\0';
+#endif
+        ud.recstat = ud.m_recstat = 0; // never keep "recording" with no file to write to
+        return;
+    }
 // CTW END - MODIFICATION
     fwrite(&dummylong,4,1,frecfilep);
 // 1.3d: write the 1.3D demo header
@@ -11098,6 +11362,7 @@ void closedemowrite(void)
         ud.recstat = ud.m_recstat = 0;
         fclose(frecfilep);
         frecfilep = NULL;
+        FinishAutoDemo(); // multiplayer: final name + .13d sidecar
     }
 }
 #else
@@ -12681,6 +12946,9 @@ void dobonus(char bonusonly)
         for(t=0;t<64;t+=7)
             palto(0,0,0,63-t);
 
+        if(g_scoreshot)
+            takescoreshot(); // "SCORE SHOT" option: screenshot of the scoreboard
+
         KB_FlushKeyboardQueue();
         while(KB_KeyWaiting()==0) getpackets();
 
@@ -13333,79 +13601,53 @@ void CenterRudder(void)
 // FIX_00006: better naming system for screenshots + message when pic is taken. 
 //            Use ./screenshots folder. Screenshot code rerwritten. Faster and
 //            makes smaller files. Doesn't freeze or lag the game anymore.
-void takescreenshot(void)
+static void takescreenshot_ex(int silent)
 {
-	char szFilename[256];
-	int i;
-	char score[20];
-	time_t time4file;
-	struct tm *tmHMS;
-	
+	char szFilename[1200];
+	char name[1100];
 
-	// xduke: Build a nice name w/ date and players name if in multi mode.
-	time(&time4file);
-	tmHMS = localtime(&time4file);
-
-	sprintf(tempbuf, "13Duke(v%d.%d) %.4d.%.2d.%.2d %.2dh%.2dm%.2ds", 
-			XDUKE_REV_X,
-			XDUKE_REV_DOT_Y,
-			tmHMS->tm_year+1900,
-			tmHMS->tm_mon+1,
-			tmHMS->tm_mday,
-			tmHMS->tm_hour,
-			tmHMS->tm_min,
-			tmHMS->tm_sec);
-
-	if(ud.multimode>1) // if more than 1 player, we add name. Then add score if DM
-	{
-		strcat(tempbuf, " [");
-		for(i=connecthead;i>=0;i=connectpoint2[i])
-		{
-			if(!ud.user_name[i][0])
-				strcat(tempbuf, "NoName");
-			else
-				strcat(tempbuf, &ud.user_name[i][0]);
-
-			if(ud.m_coop==0 || ud.m_coop==2)  // if DM or DM No spawn. Add Score as well
-			{
-				strcat(tempbuf, "(");
-				strcat(tempbuf, itoa(ps[i].frag-ps[i].fraggedself, score, 10));
-				strcat(tempbuf, ") vs ");
-			}
-			else
-				strcat(tempbuf, " vs ");
-		}	
-		tempbuf[strlen(tempbuf)-4]=0; // remove last vs
-		strcat(tempbuf, "]");
-	}
-	strcat(tempbuf, ".bmp");
-
+	BuildMatchFileName(name, sizeof(name));
+	strcat(name, ".bmp");
 
 	// If this is a TC save it to the TC's directory
 	if(game_dir[0] != '\0')
 	{
 		sprintf(szFilename, "%s\\%s", game_dir, SCREENSHOTPATH);
 		mkdir(szFilename);
-		sprintf(szFilename, "%s\\%s\\%s", game_dir, SCREENSHOTPATH, tempbuf);
+		sprintf(szFilename, "%s\\%s\\%s", game_dir, SCREENSHOTPATH, name);
 	}
 	// otherwise let's save it to the root.
 	else
 	{
 		mkdir(SCREENSHOTPATH);
-		sprintf(szFilename, "%s\\%s", SCREENSHOTPATH, tempbuf);
+		sprintf(szFilename, "%s\\%s", SCREENSHOTPATH, name);
 	}
 
 	if(SafeFileExists(szFilename) == 0)
 	{
 		screencapture(szFilename,0);
-		sprintf(fta_quotes[103],"SCREEN SAVED");  
-		sound(EXITMENUSOUND);
+		if(!silent)
+		{
+			sprintf(fta_quotes[103],"SCREEN SAVED");
+			sound(EXITMENUSOUND);
+		}
 	}
-	else
+	else if(!silent)
 		sprintf(fta_quotes[103],"CAN'T WRITE FILE!");
 
-	FTA(103,&ps[screenpeek],1);
+	if(!silent)
+		FTA(103,&ps[screenpeek],1);
+}
 
+void takescreenshot(void)
+{
+	takescreenshot_ex(0);
+}
+
+// Same file as F12 but silent (no sound / message): used by the "SCORE SHOT" option
+void takescoreshot(void)
+{
+	takescreenshot_ex(1);
 }
 
 

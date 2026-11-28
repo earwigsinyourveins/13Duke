@@ -191,6 +191,7 @@ extern void incur_damage(struct player_struct *p);
 extern void quickkill(struct player_struct *p);
 #if DUKE13D
 extern int32 g_demo_forced_cameras;
+extern int32 g_scoreshot;
 #endif
 #if DUKE13D
 /* every quickkill() call is traced (13duke_trace.csv) with the source line that killed the player */
@@ -486,6 +487,7 @@ extern void CenterThrottle(void );
 extern void CenterRudder(void );
 //#line "game.c" ????
 extern void takescreenshot(void );
+extern void takescoreshot(void );
 //#line "config.c" 57
 extern void CONFIG_GetSetupFilename(void );
 //#line "config.c" 170

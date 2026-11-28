@@ -113,6 +113,7 @@ enum
 #define VOLUMEALL (groupefil_crc32[0]==CRC_BASE_GRP_FULL_13 || conVersion == 13 && groupefil_crc32[0]!=CRC_BASE_GRP_SHAREWARE_13 && groupefil_crc32[0]!=CRC_BASE_GRP_PLUTONIUM_14 && groupefil_crc32[0]!=CRC_BASE_GRP_ATOMIC_15)
 
 #define SCREENSHOTPATH "screenshots"
+#define DEMOPATH "DEMOS"   // auto-recorded multiplayer demos (+ .13d sidecars)
 
 // #define ONELEVELDEMO
 
